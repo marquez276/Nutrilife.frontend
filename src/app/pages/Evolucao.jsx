@@ -1,0 +1,184 @@
+import { Layout } from "../components/Layout";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { TrendingDown, Calendar, Plus } from "lucide-react";
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useState } from "react";
+import { toast } from "sonner";
+import { useApp } from "../context/AppContext";
+
+export default function Evolucao() {
+  const { pesagens, adicionarPesagem, anamnese } = useApp();
+  const [showForm, setShowForm] = useState(false);
+  const [novoPeso, setNovoPeso] = useState("");
+  const [novaData, setNovaData] = useState(new Date().toISOString().split("T")[0]);
+
+  const pesoInicial = anamnese?.peso ? parseFloat(anamnese.peso) : null;
+  const pesoAtual = pesagens.length > 0 ? parseFloat(pesagens[pesagens.length - 1].peso) : pesoInicial;
+  const goalWeight = pesoInicial ? (pesoInicial - 5) : null;
+  const weightLost = pesoInicial && pesoAtual ? (pesoInicial - pesoAtual).toFixed(1) : 0;
+  const weightToGoal = goalWeight && pesoAtual ? (pesoAtual - goalWeight).toFixed(1) : null;
+
+  const chartData = pesagens
+    .map(p => ({
+      date: p.data ? String(p.data).split("T")[0] : "",
+      peso: parseFloat(p.peso),
+      meta: goalWeight,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const formatarData = (data) => {
+    if (!data) return "";
+    const d = String(data).split("T")[0];
+    const [y, m, dia] = d.split("-");
+    return `${dia}/${m}/${y}`;
+  };
+
+  const handleSalvar = () => {
+    if (!novoPeso) { toast.error("Informe o peso."); return; }
+    adicionarPesagem({ peso: parseFloat(novoPeso), data: novaData });
+    toast.success("Pesagem registrada!");
+    setNovoPeso("");
+    setShowForm(false);
+  };
+
+  return (
+    <Layout userType="patient">
+      <div className="p-8">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Evolução de Peso</h1>
+            <p className="text-gray-500">Acompanhe seu progresso ao longo do tempo</p>
+          </div>
+          <Button className="bg-green-600 hover:bg-green-700" onClick={() => setShowForm(!showForm)}>
+            <Plus className="w-4 h-4 mr-2" /> Registrar Peso
+          </Button>
+        </div>
+
+        {showForm && (
+          <Card className="mb-6">
+            <CardHeader><CardTitle>Registrar Nova Pesagem</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Peso (kg)</Label>
+                  <Input type="number" step="0.1" placeholder="73.5" value={novoPeso} onChange={e => setNovoPeso(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data</Label>
+                  <Input type="date" value={novaData} onChange={e => setNovaData(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <Button className="bg-green-600 hover:bg-green-700" onClick={handleSalvar}>Salvar</Button>
+                <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Peso Atual</p>
+                  <p className="text-3xl font-bold text-gray-900">{pesoAtual ?? "—"}</p>
+                  <p className="text-sm text-gray-500">kg</p>
+                </div>
+                <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
+                  <TrendingDown className="w-6 h-6" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm text-gray-500 mb-1">Peso Inicial</p>
+              <p className="text-3xl font-bold text-gray-900">{pesoInicial ?? "—"}</p>
+              <p className="text-sm text-gray-500">kg</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm text-gray-500 mb-1">Peso Perdido</p>
+              <p className="text-3xl font-bold text-green-600">{weightLost > 0 ? `-${weightLost}` : "0"}</p>
+              <p className="text-sm text-gray-500">kg</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm text-gray-500 mb-1">Meta</p>
+              <p className="text-3xl font-bold text-gray-900">{goalWeight ?? "—"}</p>
+              <p className="text-sm text-gray-500">{weightToGoal ? `ainda ${weightToGoal} kg` : "kg"}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="mb-8">
+          <CardHeader><CardTitle>Gráfico de Progresso</CardTitle></CardHeader>
+          <CardContent>
+            {chartData.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-gray-400">
+                Nenhuma pesagem registrada ainda. Clique em "Registrar Peso" para começar.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={350}>
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorPeso" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" stroke="#6b7280" />
+                  <YAxis stroke="#6b7280" />
+                  <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} />
+                  <Area type="monotone" dataKey="peso" stroke="#16a34a" strokeWidth={3} fill="url(#colorPeso)" />
+                  {goalWeight && <Line type="monotone" dataKey="meta" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={false} />}
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Histórico de Pesagens</CardTitle></CardHeader>
+          <CardContent>
+            {pesagens.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">Nenhuma pesagem registrada.</p>
+            ) : (
+              <div className="space-y-3">
+                {[...pesagens].reverse().map((p, i) => {
+                  const anterior = pesagens[pesagens.length - 1 - i - 1];
+                  const diff = anterior ? (parseFloat(p.peso) - parseFloat(anterior.peso)).toFixed(1) : null;
+                  return (
+                    <div key={p.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <Calendar className="w-5 h-5 text-green-600" />
+                        </div>
+                        <p className="font-medium text-gray-900">{formatarData(p.data)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-gray-900">{p.peso} kg</p>
+                        {diff !== null && (
+                          <p className={`text-sm font-medium ${parseFloat(diff) < 0 ? "text-green-600" : "text-red-600"}`}>
+                            {parseFloat(diff) > 0 ? "+" : ""}{diff} kg
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </Layout>
+  );
+}

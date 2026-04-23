@@ -1,0 +1,25 @@
+// Componente não utilizado no projeto
+export function Sidebar() { return null; }
+export function SidebarContent() { return null; }
+export function SidebarFooter() { return null; }
+export function SidebarGroup() { return null; }
+export function SidebarGroupAction() { return null; }
+export function SidebarGroupContent() { return null; }
+export function SidebarGroupLabel() { return null; }
+export function SidebarHeader() { return null; }
+export function SidebarInput() { return null; }
+export function SidebarInset() { return null; }
+export function SidebarMenu() { return null; }
+export function SidebarMenuAction() { return null; }
+export function SidebarMenuBadge() { return null; }
+export function SidebarMenuButton() { return null; }
+export function SidebarMenuItem() { return null; }
+export function SidebarMenuSkeleton() { return null; }
+export function SidebarMenuSub() { return null; }
+export function SidebarMenuSubButton() { return null; }
+export function SidebarMenuSubItem() { return null; }
+export function SidebarProvider() { return null; }
+export function SidebarRail() { return null; }
+export function SidebarSeparator() { return null; }
+export function SidebarTrigger() { return null; }
+export function useSidebar() { return {}; }
