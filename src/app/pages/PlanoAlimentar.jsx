@@ -1,9 +1,10 @@
 import { Layout } from "../components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Coffee, Sun, Cookie, Moon, Download } from "lucide-react";
+import { Coffee, Sun, Cookie, Moon, RefreshCw, Download } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
+import { toast } from "sonner";
 
 const icones = [Coffee, Sun, Cookie, Moon];
 const cores = [
@@ -15,13 +16,19 @@ const cores = [
 
 export default function PlanoAlimentar() {
   const { usuarioLogado } = useApp();
-  const [plano, setPlano]     = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro]       = useState("");
+  const [plano, setPlano]         = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [regenerando, setRegenerando] = useState(false);
+  const [erro, setErro]           = useState("");
 
-  useEffect(() => {
+  const carregarPlano = (forcar = false) => {
     if (!usuarioLogado?.id) return;
-    fetch(`/plano/gerar/${usuarioLogado.id}`, { method: "POST" })
+    const url = forcar
+      ? `/plano/regenerar/${usuarioLogado.id}`
+      : `/plano/gerar/${usuarioLogado.id}`;
+    forcar ? setRegenerando(true) : setLoading(true);
+    setErro("");
+    fetch(url, { method: "POST" })
       .then(async res => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -29,10 +36,18 @@ export default function PlanoAlimentar() {
         }
         return res.json();
       })
-      .then(data => setPlano(data))
-      .catch(e => setErro(e.message))
-      .finally(() => setLoading(false));
-  }, [usuarioLogado]);
+      .then(data => {
+        setPlano(data);
+        if (forcar) toast.success("Plano regenerado com sucesso!");
+      })
+      .catch(e => {
+        setErro(e.message);
+        if (forcar) toast.error("Erro ao regenerar plano.");
+      })
+      .finally(() => forcar ? setRegenerando(false) : setLoading(false));
+  };
+
+  useEffect(() => { carregarPlano(); }, [usuarioLogado]);
 
   const totalCalories = plano?.refeicoes?.reduce(
     (acc, r) => acc + (r.alimentos?.reduce((s, a) => s + (a.calorias ?? 0), 0) ?? 0), 0
@@ -46,6 +61,10 @@ export default function PlanoAlimentar() {
             <h1 className="text-3xl font-bold text-gray-900">Plano Alimentar</h1>
             <p className="text-gray-500">Seu plano personalizado gerado automaticamente</p>
           </div>
+          <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-50" onClick={() => carregarPlano(true)} disabled={regenerando}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${regenerando ? "animate-spin" : ""}`} />
+            {regenerando ? "Regenerando..." : "Regenerar Plano"}
+          </Button>
           <Button className="bg-green-600 hover:bg-green-700" onClick={() => window.print()}>
             <Download className="w-4 h-4 mr-2" /> Imprimir
           </Button>

@@ -4,51 +4,66 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Plus, Search, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Progress } from "../components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
 import { toast } from "sonner";
 import { useApp } from "../context/AppContext";
 
-const ALIMENTOS_COMUNS = [
-  { name: "Banana", quantity: "1 unidade", calories: 105 },
-  { name: "Maçã", quantity: "1 unidade", calories: 95 },
-  { name: "Arroz branco", quantity: "4 colheres", calories: 180 },
-  { name: "Peito de frango", quantity: "100g", calories: 165 },
-  { name: "Pão francês", quantity: "1 unidade", calories: 135 },
-  { name: "Ovo cozido", quantity: "1 unidade", calories: 70 },
-];
+const EMPTY_CUSTOM = { name: "", quantity: "", calories: "", proteina: "", carboidrato: "", gordura: "", time: "" };
 
 export default function Calorias() {
-  const { refeicoes, adicionarRefeicao, removerRefeicao } = useApp();
+  const { usuarioLogado, refeicoes, adicionarRefeicao, removerRefeicao, metas } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [customFood, setCustomFood] = useState({ name: "", quantity: "", calories: "", time: "" });
+  const [customFood, setCustomFood] = useState(EMPTY_CUSTOM);
+  const [alimentos, setAlimentos] = useState([]);
 
-  const dailyGoal = 1800;
+  useEffect(() => {
+    fetch("/admin/alimentos")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setAlimentos(Array.isArray(data) ? data : []))
+      .catch(() => setAlimentos([]));
+  }, []);
+
+  const dailyGoal = metas?.metaCalorias || 2000;
   const totalConsumed = refeicoes.reduce((sum, item) => sum + Number(item.calories), 0);
   const remaining = dailyGoal - totalConsumed;
   const progressPercentage = Math.min(100, (totalConsumed / dailyGoal) * 100);
 
   const handleAddFood = (food) => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    adicionarRefeicao({ meal: food.name, items: food.quantity, calories: food.calories, time });
-    toast.success(`${food.name} adicionado!`);
+    adicionarRefeicao({ meal: food.nome, items: `${food.calorias} kcal`, calories: food.calorias, time });
+    toast.success(`${food.nome} adicionado!`);
   };
 
-  const handleAddCustom = () => {
+  const handleAddCustom = async () => {
     if (!customFood.name || !customFood.quantity || !customFood.calories || !customFood.time) {
-      toast.error("Preencha todos os campos.");
+      toast.error("Preencha todos os campos obrigatórios.");
       return;
     }
-    adicionarRefeicao({ meal: customFood.name, items: customFood.quantity, calories: parseInt(customFood.calories), time: customFood.time });
-    setCustomFood({ name: "", quantity: "", calories: "", time: "" });
+    try {
+      await fetch("/alimentos/customizado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: customFood.name,
+          calorias: parseFloat(customFood.calories) || 0,
+          proteina: parseFloat(customFood.proteina) || 0,
+          carboidrato: parseFloat(customFood.carboidrato) || 0,
+          gordura: parseFloat(customFood.gordura) || 0,
+          clienteId: usuarioLogado?.id,
+        }),
+      });
+    } catch {}
+    adicionarRefeicao({ meal: customFood.name, items: customFood.quantity, calories: parseFloat(customFood.calories), time: customFood.time });
+    setCustomFood(EMPTY_CUSTOM);
     setIsDialogOpen(false);
     toast.success("Alimento adicionado!");
   };
 
-  const filteredFoods = ALIMENTOS_COMUNS.filter(f =>
-    f.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredFoods = alimentos.filter(f =>
+    f.nome?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -131,14 +146,17 @@ export default function Calorias() {
                 </Button>
                 <p className="font-semibold text-sm mb-3 text-gray-700">Alimentos Comuns</p>
                 <div className="space-y-2">
-                  {filteredFoods.map((food, i) => (
-                    <button key={i} className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => handleAddFood(food)}>
+                  {filteredFoods.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-4">Nenhum alimento encontrado.</p>
+                  )}
+                  {filteredFoods.map(food => (
+                    <button key={food.id} className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => handleAddFood(food)}>
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-gray-900 text-sm">{food.name}</p>
-                          <p className="text-xs text-gray-500">{food.quantity}</p>
+                          <p className="font-medium text-gray-900 text-sm">{food.nome}</p>
+                          <p className="text-xs text-gray-500">P: {food.proteina}g · C: {food.carboidrato}g · G: {food.gordura}g</p>
                         </div>
-                        <span className="text-sm font-bold text-gray-900">{food.calories} kcal</span>
+                        <span className="text-sm font-bold text-gray-900">{food.calorias} kcal</span>
                       </div>
                     </button>
                   ))}
@@ -156,13 +174,16 @@ export default function Calorias() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               {[
-                { label: "Nome", field: "name", type: "text", placeholder: "Ex: Iogurte" },
-                { label: "Quantidade", field: "quantity", type: "text", placeholder: "Ex: 1 pote" },
-                { label: "Calorias", field: "calories", type: "number", placeholder: "Ex: 100" },
-                { label: "Hora", field: "time", type: "time", placeholder: "" },
+                { label: "Nome *", field: "name", type: "text", placeholder: "Ex: Iogurte" },
+                { label: "Quantidade *", field: "quantity", type: "text", placeholder: "Ex: 1 pote" },
+                { label: "Calorias *", field: "calories", type: "number", placeholder: "Ex: 100" },
+                { label: "Hora *", field: "time", type: "time", placeholder: "" },
+                { label: "Proteína (g)", field: "proteina", type: "number", placeholder: "Ex: 10" },
+                { label: "Carboidrato (g)", field: "carboidrato", type: "number", placeholder: "Ex: 20" },
+                { label: "Gordura (g)", field: "gordura", type: "number", placeholder: "Ex: 5" },
               ].map(({ label, field, type, placeholder }) => (
                 <div key={field} className="grid grid-cols-4 items-center gap-4">
-                  <Label className="text-right">{label}</Label>
+                  <Label className="text-right text-xs">{label}</Label>
                   <Input type={type} placeholder={placeholder} className="col-span-3" value={customFood[field]} onChange={e => setCustomFood(p => ({ ...p, [field]: e.target.value }))} />
                 </div>
               ))}

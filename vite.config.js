@@ -21,6 +21,11 @@ export default defineConfig({
       '/registros': { target: 'http://localhost:8080', changeOrigin: true },
       '/consultas': { target: 'http://localhost:8080', changeOrigin: true },
       '/plano': { target: 'http://localhost:8080', changeOrigin: true },
+      '/nutricionistas': { target: 'http://localhost:8080', changeOrigin: true },
+      '/avaliacoes': { target: 'http://localhost:8080', changeOrigin: true },
+      '/admin': { target: 'http://localhost:8080', changeOrigin: true },
+      '/prontuario': { target: 'http://localhost:8080', changeOrigin: true },
+      '/pagamentos': { target: 'http://localhost:8080', changeOrigin: true },
     }
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],

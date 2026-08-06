@@ -21,12 +21,95 @@ export default function Nutricionista() {
   const { pacientes, adicionarPaciente, usuarioLogado } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [clinicalNotes, setClinicalNotes] = useState("");
+  const [clinicalNotesId, setClinicalNotesId] = useState(null);
+  const [savingNotes, setSavingNotes] = useState(false);
   const [isNewPatientDialogOpen, setIsNewPatientDialogOpen] = useState(false);
   const [isEvolutionDialogOpen, setIsEvolutionDialogOpen] = useState(false);
   const [evolutionPatient, setEvolutionPatient] = useState(null);
+  const [progressNote, setProgressNote] = useState("");
+  const [savingProgress, setSavingProgress] = useState(false);
   const FORM_VAZIO = { name: "", age: "", sex: "", weight: "", height: "", goal: "", healthIssues: "", restrictions: "", activity: "", sleep: "" };
   const [newPatientForm, setNewPatientForm] = useState(FORM_VAZIO);
   const setField = (field, value) => setNewPatientForm(p => ({ ...p, [field]: value }));
+
+  const handleOpenPatient = async (patient) => {
+    setSelectedPatient(patient);
+    setClinicalNotes("");
+    setClinicalNotesId(null);
+    if (usuarioLogado?.id && patient?.name) {
+      try {
+        const res = await fetch(`/prontuario/${usuarioLogado.id}/${encodeURIComponent(patient.name)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setClinicalNotes(data.observations || "");
+          setClinicalNotesId(data.id > 0 ? data.id : null);
+        }
+      } catch {}
+    }
+  };
+
+  const handleSaveClinicalNotes = async () => {
+    if (!usuarioLogado?.id || !selectedPatient?.name) return;
+    setSavingNotes(true);
+    try {
+      const res = await fetch("/prontuario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          consultaId: clinicalNotesId,
+          observations: clinicalNotes,
+          pacienteNome: selectedPatient.name,
+          nutricionistaId: usuarioLogado.id,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setClinicalNotesId(data.id);
+        toast.success("Notas clínicas salvas!");
+      } else {
+        toast.error("Erro ao salvar notas.");
+      }
+    } catch { toast.error("Erro ao conectar com o servidor."); }
+    setSavingNotes(false);
+  };
+
+  const handleOpenEvolution = async (patient) => {
+    setEvolutionPatient(patient);
+    setProgressNote("");
+    if (usuarioLogado?.id && patient?.name) {
+      try {
+        const res = await fetch(`/prontuario/${usuarioLogado.id}/${encodeURIComponent(patient.name)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setProgressNote(data.observations || "");
+        }
+      } catch {}
+    }
+    setIsEvolutionDialogOpen(true);
+  };
+
+  const handleSaveProgressNote = async () => {
+    if (!usuarioLogado?.id || !evolutionPatient?.name) return;
+    setSavingProgress(true);
+    try {
+      const res = await fetch("/prontuario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          observations: progressNote,
+          pacienteNome: evolutionPatient.name,
+          nutricionistaId: usuarioLogado.id,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Nota de progresso salva!");
+      } else {
+        toast.error("Erro ao salvar nota.");
+      }
+    } catch { toast.error("Erro ao conectar com o servidor."); }
+    setSavingProgress(false);
+  };
 
   const handleSaveNewPatient = () => {
     if (!newPatientForm.name || !newPatientForm.age || !newPatientForm.weight) {
@@ -129,10 +212,10 @@ export default function Nutricionista() {
                     </div>
 
                     <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={() => setSelectedPatient(patient)}>
+                      <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={() => handleOpenPatient(patient)}>
                         <ClipboardList className="w-4 h-4 mr-2" /> Detalhes
                       </Button>
-                      <Button className="bg-green-600 hover:bg-green-700 flex-1 h-11 rounded-xl" onClick={() => { setEvolutionPatient(patient); setIsEvolutionDialogOpen(true); }}>
+                      <Button className="bg-green-600 hover:bg-green-700 flex-1 h-11 rounded-xl" onClick={() => handleOpenEvolution(patient)}>
                         <TrendingUp className="w-4 h-4 mr-2" /> Evolução
                       </Button>
                     </div>
@@ -171,7 +254,20 @@ export default function Nutricionista() {
                 </div>
                 <div className="mt-4 p-4 border-2 border-dashed rounded-xl">
                   <Label className="text-sm font-bold text-gray-600 mb-2 block">Observações Clínicas</Label>
-                  <textarea className="w-full bg-transparent border-none focus:ring-0 text-sm text-gray-500 resize-none" placeholder="Adicione notas clínicas aqui..." rows={3} />
+                  <Textarea
+                    className="w-full text-sm text-gray-700 resize-none"
+                    placeholder="Adicione notas clínicas aqui..."
+                    rows={4}
+                    value={clinicalNotes}
+                    onChange={e => setClinicalNotes(e.target.value)}
+                  />
+                  <Button
+                    className="mt-3 bg-green-600 hover:bg-green-700"
+                    onClick={handleSaveClinicalNotes}
+                    disabled={savingNotes}
+                  >
+                    {savingNotes ? "Salvando..." : "Salvar Notas"}
+                  </Button>
                 </div>
               </>
             )}
@@ -220,6 +316,22 @@ export default function Nutricionista() {
                 ) : (
                   <p className="text-center text-gray-400 py-8">Nenhum histórico de peso registrado para este paciente.</p>
                 )}
+                <div className="mt-4 pt-4 border-t">
+                  <Label className="text-sm font-bold text-gray-600 mb-2 block">Nota de Progresso</Label>
+                  <Textarea
+                    placeholder="Registre evolução, observações de progresso..."
+                    rows={3}
+                    value={progressNote}
+                    onChange={e => setProgressNote(e.target.value)}
+                  />
+                  <Button
+                    className="mt-3 bg-green-600 hover:bg-green-700"
+                    onClick={handleSaveProgressNote}
+                    disabled={savingProgress}
+                  >
+                    {savingProgress ? "Salvando..." : "Salvar Nota"}
+                  </Button>
+                </div>
               </div>
             )}
           </DialogContent>

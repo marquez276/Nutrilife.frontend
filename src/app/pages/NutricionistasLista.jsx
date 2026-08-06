@@ -12,29 +12,34 @@ import { toast } from "sonner";
 import { useApp } from "../context/AppContext";
 
 export default function NutricionistasLista() {
-  const { nutricionistas, adicionarAvaliacao } = useApp();
+  const { nutricionistas, adicionarAvaliacao, usuarioLogado } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedNutri, setSelectedNutri] = useState(null);
   const [newReview, setNewReview] = useState({ rating: 5, comment: "" });
+  const [enviando, setEnviando] = useState(false);
 
   const filteredNutris = nutricionistas.filter(n =>
-    n.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    n.specialty.toLowerCase().includes(searchTerm.toLowerCase())
+    (n.nome || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (n.specialty || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSubmitReview = () => {
+  const handleSubmitReview = async () => {
     if (!newReview.comment.trim()) { toast.error("Escreva um comentário."); return; }
-    const review = {
-      id: Date.now().toString(),
-      userName: "Você",
-      rating: newReview.rating,
-      comment: newReview.comment,
-      date: new Date().toLocaleDateString("pt-BR"),
-    };
-    adicionarAvaliacao(selectedNutri.id, review);
-    setSelectedNutri(prev => ({ ...prev, reviews: [review, ...prev.reviews] }));
+    if (!usuarioLogado?.id) { toast.error("Você precisa estar logado."); return; }
+    setEnviando(true);
+    await adicionarAvaliacao(selectedNutri.id, { rating: newReview.rating, comment: newReview.comment });
+    setSelectedNutri(prev => {
+      const updated = nutricionistas.find(n => n.id === prev.id);
+      return updated ? { ...updated } : prev;
+    });
     toast.success("Avaliação enviada!");
     setNewReview({ rating: 5, comment: "" });
+    setEnviando(false);
+  };
+
+  const mediaRating = (reviews) => {
+    if (!reviews?.length) return null;
+    return (reviews.reduce((s, r) => s + (r.rating ?? r.nota ?? 0), 0) / reviews.length).toFixed(1);
   };
 
   return (
@@ -51,45 +56,55 @@ export default function NutricionistasLista() {
         </div>
 
         {filteredNutris.length === 0 ? (
-          <Card><CardContent className="p-12 text-center text-gray-400">Nenhum nutricionista encontrado.</CardContent></Card>
+          <Card><CardContent className="p-12 text-center text-gray-400">
+            {nutricionistas.length === 0
+              ? "No momento não há nutricionistas disponíveis."
+              : "Nenhum nutricionista encontrado."}
+          </CardContent></Card>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredNutris.map(nutri => (
-              <Card key={nutri.id} className="hover:shadow-xl transition-all group overflow-hidden border-none shadow-sm">
-                <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
-                  {nutri.photo ? (
-                    <img src={nutri.photo} alt={nutri.nome} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-gray-300">
-                      {nutri.nome.charAt(0)}
+            {filteredNutris.map(nutri => {
+              const rating = mediaRating(nutri.reviews) ?? (nutri.rating > 0 ? nutri.rating.toFixed(1) : null);
+              return (
+                <Card key={nutri.id} className="hover:shadow-xl transition-all group overflow-hidden border-none shadow-sm">
+                  <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                    {nutri.fotoUrl ? (
+                      <img src={nutri.fotoUrl} alt={nutri.nome}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                        onError={e => { e.target.style.display = "none"; }}
+                      />
+                    ) : null}
+                    <div className={`absolute inset-0 w-full h-full flex items-center justify-center text-6xl font-bold text-gray-300 bg-gray-100 ${nutri.fotoUrl ? "opacity-0" : "opacity-100"}`}>
+                      {(nutri.nome || "?").charAt(0)}
                     </div>
-                  )}
-                  <div className="absolute top-3 right-3">
-                    <Badge className="bg-white/95 text-green-700 border-none px-3 py-1 text-sm font-bold">
-                      <Star className="w-4 h-4 fill-green-600 text-green-600 mr-1" />
-                      {nutri.rating > 0 ? nutri.rating.toFixed(1) : "Novo"}
-                    </Badge>
+                    <div className="absolute top-3 right-3">
+                      <Badge className="bg-white/95 text-green-700 border-none px-3 py-1 text-sm font-bold">
+                        <Star className="w-4 h-4 fill-green-600 text-green-600 mr-1" />
+                        {rating ?? "Novo"}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xl group-hover:text-green-600 transition-colors">{nutri.nome}</CardTitle>
-                  <p className="text-green-600 font-bold uppercase tracking-wider text-xs">{nutri.specialty}</p>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-6">{nutri.bio}</p>
-                  <div className="flex gap-2">
-                    <Button className="flex-1 bg-green-600 hover:bg-green-700 h-11" onClick={() => setSelectedNutri(nutri)}>
-                      Ver Perfil Completo
-                    </Button>
-                    {nutri.whatsapp && (
-                      <Button variant="outline" className="text-[#25D366] border-[#25D366] hover:bg-green-50 h-11" onClick={() => window.open(`https://wa.me/${nutri.whatsapp}`)}>
-                        <MessageCircle className="w-5 h-5" />
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xl group-hover:text-green-600 transition-colors">{nutri.nome}</CardTitle>
+                    <p className="text-green-600 font-bold uppercase tracking-wider text-xs">{nutri.specialty}</p>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-6">{nutri.bio || "Sem descrição."}</p>
+                    <div className="flex gap-2">
+                      <Button className="flex-1 bg-green-600 hover:bg-green-700 h-11" onClick={() => setSelectedNutri(nutri)}>
+                        Ver Perfil Completo
                       </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                      {nutri.whatsapp && (
+                        <Button variant="outline" className="text-[#25D366] border-[#25D366] hover:bg-green-50 h-11"
+                          onClick={() => window.open(`https://wa.me/${nutri.whatsapp.replace(/\D/g, "")}`)}>
+                          <MessageCircle className="w-5 h-5" />
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
 
@@ -102,36 +117,60 @@ export default function NutricionistasLista() {
                   <DialogDescription>Informações detalhadas sobre o nutricionista.</DialogDescription>
                 </DialogHeader>
                 <div className="relative h-64 bg-gray-200">
-                  {selectedNutri.photo && <img src={selectedNutri.photo} className="w-full h-full object-cover" alt={selectedNutri.nome} />}
+                  {selectedNutri.fotoUrl ? (
+                    <img src={selectedNutri.fotoUrl} className="w-full h-full object-cover" alt={selectedNutri.nome}
+                      onError={e => { e.target.style.display = "none"; }}
+                    />
+                  ) : null}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   <div className="absolute bottom-6 left-8 text-white">
-                    <Badge className="mb-2 bg-green-500 border-none text-white">{selectedNutri.specialty}</Badge>
+                    {selectedNutri.specialty && <Badge className="mb-2 bg-green-500 border-none text-white">{selectedNutri.specialty}</Badge>}
                     <h2 className="text-4xl font-bold">{selectedNutri.nome}</h2>
                   </div>
                 </div>
+
                 <div className="p-8">
                   <div className="flex flex-col md:flex-row gap-8">
+                    {/* Lateral */}
                     <div className="w-full md:w-1/3 space-y-6">
                       <Card className="border-none shadow-sm bg-gray-50">
-                        <CardContent className="p-4 space-y-4">
+                        <CardContent className="p-4 space-y-3">
                           {selectedNutri.whatsapp && (
-                            <Button className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white h-12" onClick={() => window.open(`https://wa.me/${selectedNutri.whatsapp}`)}>
+                            <Button className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white h-12"
+                              onClick={() => window.open(`https://wa.me/${selectedNutri.whatsapp.replace(/\D/g, "")}`)}>
                               <MessageCircle className="w-5 h-5 mr-2" /> WhatsApp
                             </Button>
                           )}
-                          <div className="flex justify-center gap-4">
-                            {selectedNutri.social?.instagram && <a href="#" className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-pink-600"><Instagram className="w-5 h-5" /></a>}
-                            {selectedNutri.social?.linkedin && <a href="#" className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-blue-600"><Linkedin className="w-5 h-5" /></a>}
-                            {selectedNutri.social?.website && <a href="#" className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-green-600"><Globe className="w-5 h-5" /></a>}
+                          <div className="flex justify-center gap-3 flex-wrap">
+                            {selectedNutri.instagram && (
+                              <a href={`https://instagram.com/${selectedNutri.instagram.replace("@", "")}`} target="_blank" rel="noopener noreferrer"
+                                className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-pink-600">
+                                <Instagram className="w-5 h-5" />
+                              </a>
+                            )}
+                            {selectedNutri.linkedin && (
+                              <a href={`https://linkedin.com/in/${selectedNutri.linkedin}`} target="_blank" rel="noopener noreferrer"
+                                className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-blue-600">
+                                <Linkedin className="w-5 h-5" />
+                              </a>
+                            )}
+                            {selectedNutri.website && (
+                              <a href={selectedNutri.website.startsWith("http") ? selectedNutri.website : `https://${selectedNutri.website}`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-green-600">
+                                <Globe className="w-5 h-5" />
+                              </a>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
-                      {selectedNutri.prices?.length > 0 && (
+
+                      {selectedNutri.precos?.length > 0 && (
                         <div className="space-y-3">
                           <h4 className="font-bold text-gray-900 flex items-center gap-2">
                             <DollarSign className="w-4 h-4 text-green-600" /> Tabela de Preços
                           </h4>
-                          {selectedNutri.prices.map((p, i) => (
+                          {selectedNutri.precos.map((p, i) => (
                             <div key={i} className="flex justify-between p-3 bg-white border rounded-xl text-sm">
                               <span className="text-gray-600">{p.label}</span>
                               <span className="font-bold text-green-700">{p.value}</span>
@@ -141,26 +180,35 @@ export default function NutricionistasLista() {
                       )}
                     </div>
 
+                    {/* Conteúdo */}
                     <div className="flex-1">
                       <Tabs defaultValue="sobre" className="w-full">
                         <TabsList className="mb-6 h-12 w-full p-1 bg-gray-100 rounded-xl">
                           <TabsTrigger value="sobre" className="flex-1 rounded-lg">Sobre</TabsTrigger>
                           <TabsTrigger value="portfolio" className="flex-1 rounded-lg">Fotos/Vídeos</TabsTrigger>
-                          <TabsTrigger value="avaliacoes" className="flex-1 rounded-lg">Avaliações ({selectedNutri.reviews?.length || 0})</TabsTrigger>
+                          <TabsTrigger value="avaliacoes" className="flex-1 rounded-lg">
+                            Avaliações ({selectedNutri.reviews?.length || 0})
+                          </TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="sobre" className="space-y-6">
-                          <div>
-                            <h4 className="font-bold text-gray-900 flex items-center gap-2 mb-3"><Award className="w-4 h-4 text-green-600" /> Biografia</h4>
-                            <p className="text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-xl italic">"{selectedNutri.bio}"</p>
-                          </div>
-                          {selectedNutri.experience?.length > 0 && (
+                          {selectedNutri.bio && (
                             <div>
-                              <h4 className="font-bold text-gray-900 flex items-center gap-2 mb-3"><TrendingUp className="w-4 h-4 text-green-600" /> Experiência</h4>
+                              <h4 className="font-bold text-gray-900 flex items-center gap-2 mb-3">
+                                <Award className="w-4 h-4 text-green-600" /> Biografia
+                              </h4>
+                              <p className="text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-xl italic">"{selectedNutri.bio}"</p>
+                            </div>
+                          )}
+                          {selectedNutri.experiencia?.length > 0 && (
+                            <div>
+                              <h4 className="font-bold text-gray-900 flex items-center gap-2 mb-3">
+                                <TrendingUp className="w-4 h-4 text-green-600" /> Experiência
+                              </h4>
                               <div className="space-y-2">
-                                {selectedNutri.experience.map((exp, i) => (
+                                {selectedNutri.experiencia.map((exp, i) => (
                                   <div key={i} className="flex gap-3 text-gray-600 items-start">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0" />
+                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 shrink-0" />
                                     <span>{exp}</span>
                                   </div>
                                 ))}
@@ -193,7 +241,9 @@ export default function NutricionistasLista() {
                         <TabsContent value="avaliacoes" className="space-y-4">
                           <Card className="border-2 border-dashed border-green-200 bg-green-50/30">
                             <CardContent className="p-4">
-                              <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2"><Send className="w-4 h-4 text-green-600" /> Escrever Avaliação</h4>
+                              <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                                <Send className="w-4 h-4 text-green-600" /> Escrever Avaliação
+                              </h4>
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm text-gray-600">Nota:</span>
@@ -205,20 +255,25 @@ export default function NutricionistasLista() {
                                     ))}
                                   </div>
                                 </div>
-                                <Textarea placeholder="Compartilhe sua experiência..." value={newReview.comment} onChange={e => setNewReview(p => ({ ...p, comment: e.target.value }))} rows={3} className="resize-none" />
-                                <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleSubmitReview}>
-                                  <Send className="w-4 h-4 mr-2" /> Enviar Avaliação
+                                <Textarea placeholder="Compartilhe sua experiência..." value={newReview.comment}
+                                  onChange={e => setNewReview(p => ({ ...p, comment: e.target.value }))} rows={3} className="resize-none" />
+                                <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleSubmitReview} disabled={enviando}>
+                                  <Send className="w-4 h-4 mr-2" /> {enviando ? "Enviando..." : "Enviar Avaliação"}
                                 </Button>
                               </div>
                             </CardContent>
                           </Card>
-                          {selectedNutri.reviews?.map(rev => (
-                            <div key={rev.id} className="p-4 bg-gray-50 rounded-2xl">
+
+                          {selectedNutri.reviews?.length === 0 && (
+                            <p className="text-center text-gray-400 py-4">Nenhuma avaliação ainda.</p>
+                          )}
+                          {selectedNutri.reviews?.map((rev, i) => (
+                            <div key={rev.id ?? i} className="p-4 bg-gray-50 rounded-2xl">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="font-bold text-gray-900">{rev.userName}</span>
+                                <span className="font-bold text-gray-900">{rev.userName || "Paciente"}</span>
                                 <div className="flex gap-0.5">
-                                  {[...Array(5)].map((_, i) => (
-                                    <Star key={i} className={`w-3 h-3 ${i < rev.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+                                  {[...Array(5)].map((_, j) => (
+                                    <Star key={j} className={`w-3 h-3 ${j < (rev.rating ?? 0) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
                                   ))}
                                 </div>
                               </div>

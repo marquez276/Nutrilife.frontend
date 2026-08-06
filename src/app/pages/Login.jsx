@@ -26,8 +26,11 @@ export default function Login() {
     }
     toast.success("Bem-vindo!");
     if (userType === "admin") navigate("/admin");
-    else if (userType === "nutritionist") navigate("/nutricionista-portal");
-    else navigate("/dashboard");
+    else if (userType === "nutritionist") {
+      // codStatus=false means payment not yet approved
+      navigate(resultado.codStatus === false ? "/aguardando-aprovacao" : "/nutricionista-portal");
+    }
+    else navigate(resultado.hasAnamnese ? "/dashboard" : "/anamnese");
   };
 
   // Ao trocar de aba, limpa os campos

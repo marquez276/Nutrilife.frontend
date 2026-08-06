@@ -20,6 +20,9 @@ import NutricionistaPerfil from "./pages/NutricionistaPerfil";
 import GerenciarAlimentos from "./pages/GerenciarAlimentos";
 import FichaAnamnese from "./pages/FichaAnamnese";
 import NutricionistaPagamento from "./pages/NutricionistaPagamento";
+import AguardandoAprovacao from "./pages/AguardandoAprovacao";
+import Consultas from "./pages/Consultas";
+import Loja from "./pages/Loja";
 
 export const router = createBrowserRouter([
   {
@@ -41,6 +44,10 @@ export const router = createBrowserRouter([
   {
     path: "/nutricionista-pagamento",
     Component: NutricionistaPagamento,
+  },
+  {
+    path: "/aguardando-aprovacao",
+    Component: AguardandoAprovacao,
   },
   {
     path: "/dashboard",
@@ -97,5 +104,13 @@ export const router = createBrowserRouter([
   {
     path: "/admin",
     Component: AdminDashboard,
+  },
+  {
+    path: "/consultas",
+    Component: Consultas,
+  },
+  {
+    path: "/loja",
+    Component: Loja,
   },
 ]);

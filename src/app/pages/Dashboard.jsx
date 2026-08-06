@@ -15,7 +15,7 @@ import { useApp } from "../context/AppContext";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { anamnese, refeicoes, adicionarRefeicao, editarRefeicao, removerRefeicao, pesagens, usuarioLogado } = useApp();
+  const { anamnese, refeicoes, adicionarRefeicao, editarRefeicao, removerRefeicao, pesagens, usuarioLogado, metas } = useApp();
 
   useEffect(() => {
     if (!anamnese) {
@@ -28,7 +28,9 @@ export default function Dashboard() {
   const [editingMeal, setEditingMeal] = useState(null);
   const [formData, setFormData] = useState({ time: "", meal: "", items: "", calories: 0 });
 
-  const caloriesGoal = 1800;
+  const caloriesGoal = metas?.metaCalorias || 2000;
+  const statusPesoApi = metas?.statusPeso || null;
+  const pesoIdealApi = metas?.pesoIdeal || null;
   const caloriesConsumed = refeicoes.reduce((sum, m) => sum + Number(m.calories), 0);
   const caloriesRemaining = Math.max(0, caloriesGoal - caloriesConsumed);
   const progressPercentage = Math.min(100, (caloriesConsumed / caloriesGoal) * 100);
@@ -42,13 +44,22 @@ export default function Dashboard() {
   const progressData = pesagens.slice(-8).map(p => ({ date: p.data, peso: parseFloat(p.peso) }));
 
   const calculateStatus = () => {
+    if (statusPesoApi) {
+      const map = {
+        "Abaixo do peso": { label: "Abaixo do peso", color: "bg-blue-100 text-blue-700", desc: "Sua meta deve focar em ganho de massa." },
+        "Peso Ideal":     { label: "Peso Ideal",     color: "bg-green-100 text-green-700", desc: "Excelente! Mantenha seus hábitos saudáveis." },
+        "Sobrepeso":      { label: "Sobrepeso",      color: "bg-amber-100 text-amber-700", desc: "Procure manter um déficit calórico leve." },
+        "Obesidade":      { label: "Obesidade",      color: "bg-red-100 text-red-700",    desc: "Priorize sua saúde com acompanhamento profissional." },
+      };
+      return map[statusPesoApi] || { label: statusPesoApi, color: "bg-gray-100 text-gray-700", desc: "" };
+    }
     if (!anamnese) return { label: "Carregando...", color: "bg-gray-100 text-gray-700", desc: "" };
     const weight = parseFloat(anamnese.peso);
     const height = parseFloat(anamnese.altura) / 100;
     const bmi = weight / (height * height);
     if (bmi < 18.5) return { label: "Abaixo do peso", color: "bg-blue-100 text-blue-700", desc: "Sua meta deve focar em ganho de massa." };
-    if (bmi < 25) return { label: "Peso Ideal", color: "bg-green-100 text-green-700", desc: "Excelente! Mantenha seus hábitos saudáveis." };
-    if (bmi < 30) return { label: "Sobrepeso", color: "bg-amber-100 text-amber-700", desc: "Procure manter um déficit calórico leve." };
+    if (bmi < 25)   return { label: "Peso Ideal",     color: "bg-green-100 text-green-700", desc: "Excelente! Mantenha seus hábitos saudáveis." };
+    if (bmi < 30)   return { label: "Sobrepeso",      color: "bg-amber-100 text-amber-700", desc: "Procure manter um déficit calórico leve." };
     return { label: "Obesidade", color: "bg-red-100 text-red-700", desc: "Priorize sua saúde com acompanhamento profissional." };
   };
 
@@ -107,7 +118,7 @@ export default function Dashboard() {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard icon={Flame} label="Calorias Consumidas" value={caloriesConsumed} subtext={`de ${caloriesGoal} kcal`} color="orange" />
-          <StatCard icon={Target} label="Meta Diária" value={caloriesGoal} subtext="kcal" color="green" />
+          <StatCard icon={Target} label="Meta Diária" value={caloriesGoal} subtext={`kcal${pesoIdealApi ? ` · ideal: ${pesoIdealApi}kg` : ""}`} color="green" />
           <StatCard
             icon={TrendingDown}
             label="Peso Atual"

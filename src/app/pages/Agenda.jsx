@@ -9,22 +9,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useApp } from "../context/AppContext";
 
-// Compara data no formato "yyyy-MM-dd" com um objeto Date
-function mesmoDia(dateStr, day) {
-  if (!dateStr) return false;
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return day.getFullYear() === y && day.getMonth() + 1 === m && day.getDate() === d;
+function hoje() {
+  return format(new Date(), "yyyy-MM-dd");
 }
 
-function hoje() {
-  const d = new Date();
-  return format(d, "yyyy-MM-dd");
+function isoParaDisplay(iso) {
+  if (!iso) return "";
+  const d = String(iso).split("T")[0];
+  const [y, m, dia] = d.split("-");
+  if (!y || !m || !dia) return iso;
+  return `${dia}/${m}/${y}`;
+}
+
+function normDate(a) {
+  return (a.date || "").split("T")[0];
 }
 
 export default function Agenda({ userType = "patient" }) {
@@ -38,16 +41,16 @@ export default function Agenda({ userType = "patient" }) {
   const [formData, setFormData] = useState(FORM_VAZIO);
   const set = (field, value) => setFormData(p => ({ ...p, [field]: value }));
 
-  const handleOpenDialog = (appointment) => {
-    if (appointment) {
-      setEditingId(appointment.id);
+  const handleOpenDialog = (ag) => {
+    if (ag) {
+      setEditingId(ag.id);
       setFormData({
-        nutritionist: appointment.nutritionist || "",
-        paciente: appointment.paciente || "",
-        date: appointment.date || hoje(),
-        time: appointment.time || "09:00",
-        videoLink: appointment.videoLink || "",
-        observations: appointment.observations || "",
+        nutritionist: ag.nutritionist || ag.nutricionistaNome || "",
+        paciente: ag.paciente || ag.pacienteNome || "",
+        date: ag.date || hoje(),
+        time: ag.time || "09:00",
+        videoLink: ag.videoLink || "",
+        observations: ag.observations || "",
       });
     } else {
       setEditingId(null);
@@ -57,14 +60,7 @@ export default function Agenda({ userType = "patient" }) {
   };
 
   const handleSave = () => {
-    if (!formData.date || !formData.time) {
-      toast.error("Preencha a data e o horário.");
-      return;
-    }
-    if (userType === "patient" && !formData.nutritionist) {
-      toast.error("Selecione um nutricionista.");
-      return;
-    }
+    if (!formData.date || !formData.time) { toast.error("Preencha a data e o horário."); return; }
     if (editingId) {
       editarAgendamento(editingId, formData);
       toast.success("Agendamento atualizado!");
@@ -80,7 +76,6 @@ export default function Agenda({ userType = "patient" }) {
     return name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
   };
 
-  // Calendário
   const monthStart = startOfMonth(currentMonth);
   const calendarDays = eachDayOfInterval({
     start: startOfWeek(monthStart, { weekStartsOn: 0 }),
@@ -89,10 +84,11 @@ export default function Agenda({ userType = "patient" }) {
 
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
   const todayStr = hoje();
-  const selectedAppointments = agendamentos.filter(a => a.date === selectedDateStr);
 
-  const nomesNutricionistas = nutricionistas.map(n => n.nome);
-  const nomesPacientes = pacientes.map(p => p.name);
+  const selectedAppointments = agendamentos.filter(a => normDate(a) === selectedDateStr);
+
+  const nomesNutricionistas = nutricionistas.map(n => n.nome).filter(Boolean);
+  const nomesPacientes = pacientes.map(p => p.name).filter(Boolean);
 
   return (
     <Layout userType={userType}>
@@ -133,19 +129,16 @@ export default function Agenda({ userType = "patient" }) {
               ))}
               {calendarDays.map((day, i) => {
                 const dayStr = format(day, "yyyy-MM-dd");
-                const hasAppointment = agendamentos.some(a => a.date === dayStr);
+                const hasAppointment = agendamentos.some(a => normDate(a) === dayStr);
                 const isSelected = dayStr === selectedDateStr;
                 const isToday = dayStr === todayStr;
                 const isCurrentMonth = isSameMonth(day, monthStart);
                 return (
-                  <div
-                    key={i}
-                    onClick={() => setSelectedDate(day)}
+                  <div key={i} onClick={() => setSelectedDate(day)}
                     className={`relative h-14 sm:h-20 flex flex-col items-center justify-center cursor-pointer rounded-xl transition-all
                       ${!isCurrentMonth ? "opacity-30" : "opacity-100"}
                       ${isSelected ? "bg-green-600 text-white shadow-lg" : "hover:bg-green-50 text-gray-700"}
-                      ${isToday && !isSelected ? "border-2 border-green-600" : ""}`}
-                  >
+                      ${isToday && !isSelected ? "border-2 border-green-600" : ""}`}>
                     <span className={`text-sm sm:text-lg font-bold ${isSelected ? "text-white" : isToday ? "text-green-600" : "text-gray-900"}`}>
                       {format(day, "d")}
                     </span>
@@ -163,7 +156,7 @@ export default function Agenda({ userType = "patient" }) {
           <h2 className="text-xl font-bold text-gray-900">
             {selectedDateStr === todayStr
               ? "Consultas para Hoje"
-              : `Consultas para ${format(selectedDate, "d 'de' MMMM", { locale: ptBR })}`}
+              : `Consultas para ${isoParaDisplay(selectedDateStr)}`}
           </h2>
         </div>
 
@@ -177,54 +170,61 @@ export default function Agenda({ userType = "patient" }) {
               </div>
             </Card>
           ) : (
-            selectedAppointments.map(appointment => (
-              <Card key={appointment.id} className="border-l-4 border-l-green-500 hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row md:items-center gap-6">
-                    <div className="flex items-center gap-4">
-                      <Avatar className="w-14 h-14 border-2 border-green-100">
-                        <AvatarFallback className="bg-green-50 text-green-700 font-bold text-lg">
-                          {getInitials(userType === "nutritionist" ? appointment.paciente : appointment.nutritionist)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900">
-                          {userType === "nutritionist" ? (appointment.paciente || "Paciente não informado") : (appointment.nutritionist || "Nutricionista não informado")}
-                        </h3>
-                        <Badge variant="secondary" className="bg-green-50 text-green-700 border-none mt-1">
-                          {userType === "nutritionist" ? "Paciente" : "Nutricionista"}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-3 text-gray-600">
-                        <Clock className="w-4 h-4" />
-                        <span className="font-medium">{appointment.time}</span>
-                      </div>
-                      {appointment.videoLink && (
-                        <div className="flex items-center gap-3 text-gray-600">
-                          <Video className="w-4 h-4 text-blue-600" />
-                          <a href={appointment.videoLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-medium hover:underline flex items-center gap-1">
-                            Link da Chamada <ExternalLink className="w-3 h-3" />
-                          </a>
+            selectedAppointments.map(ag => {
+              const nomeExibido = userType === "nutritionist"
+                ? (ag.paciente || ag.pacienteNome || "Paciente não informado")
+                : (ag.nutritionist || ag.nutricionistaNome || "Sem nutricionista");
+              return (
+                <Card key={ag.id} className="border-l-4 border-l-green-500 hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex flex-col md:flex-row md:items-center gap-6">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="w-14 h-14 border-2 border-green-100">
+                          <AvatarFallback className="bg-green-50 text-green-700 font-bold text-lg">
+                            {getInitials(nomeExibido)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">{nomeExibido}</h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="secondary" className="bg-green-50 text-green-700 border-none">
+                              {userType === "nutritionist" ? "Paciente" : "Nutricionista"}
+                            </Badge>
+                            <span className="text-sm text-gray-400">{isoParaDisplay(ag.date)}</span>
+                          </div>
                         </div>
-                      )}
-                      {appointment.observations && (
-                        <p className="text-sm text-gray-500 italic">"{appointment.observations}"</p>
-                      )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-3 text-gray-600">
+                          <Clock className="w-4 h-4" />
+                          <span className="font-medium">{ag.time}</span>
+                        </div>
+                        {ag.videoLink && (
+                          <div className="flex items-center gap-3 text-gray-600">
+                            <Video className="w-4 h-4 text-blue-600" />
+                            <a href={ag.videoLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-medium hover:underline flex items-center gap-1">
+                              Link da Chamada <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        )}
+                        {ag.observations && (
+                          <p className="text-sm text-gray-500 italic">"{ag.observations}"</p>
+                        )}
+                      </div>
+                      <div className="flex flex-row md:flex-col gap-2">
+                        <Button variant="outline" size="sm" className="border-green-200 text-green-700 hover:bg-green-50" onClick={() => handleOpenDialog(ag)}>
+                          <Edit2 className="w-4 h-4 mr-2" /> Editar
+                        </Button>
+                        <Button variant="outline" size="sm" className="border-red-100 text-red-600 hover:bg-red-50"
+                          onClick={() => { removerAgendamento(ag.id); toast.success("Agendamento removido."); }}>
+                          <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex flex-row md:flex-col gap-2">
-                      <Button variant="outline" size="sm" className="border-green-200 text-green-700 hover:bg-green-50" onClick={() => handleOpenDialog(appointment)}>
-                        <Edit2 className="w-4 h-4 mr-2" /> Editar
-                      </Button>
-                      <Button variant="outline" size="sm" className="border-red-100 text-red-600 hover:bg-red-50" onClick={() => { removerAgendamento(appointment.id); toast.success("Agendamento removido."); }}>
-                        <Trash2 className="w-4 h-4 mr-2" /> Excluir
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
 
@@ -236,44 +236,42 @@ export default function Agenda({ userType = "patient" }) {
               <DialogDescription>{editingId ? "Faça as alterações necessárias." : "Preencha os dados do agendamento."}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              {/* Paciente seleciona nutricionista; nutricionista seleciona paciente */}
               {userType === "patient" ? (
                 <div className="space-y-2">
-                  <Label>Nutricionista *</Label>
-                  <Select value={formData.nutritionist} onValueChange={v => set("nutritionist", v)}>
-                    <SelectTrigger><SelectValue placeholder="Selecione um nutricionista" /></SelectTrigger>
-                    <SelectContent>
-                      {nomesNutricionistas.map(nome => (
-                        <SelectItem key={nome} value={nome}>{nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Nutricionista (opcional)</Label>
+                  <Input
+                    placeholder="Nome do nutricionista"
+                    value={formData.nutritionist}
+                    onChange={e => set("nutritionist", e.target.value)}
+                    list="nutri-list"
+                  />
+                  <datalist id="nutri-list">
+                    {nomesNutricionistas.map(n => <option key={n} value={n} />)}
+                  </datalist>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <Label>Paciente</Label>
-                  {nomesPacientes.length > 0 ? (
-                    <Select value={formData.paciente} onValueChange={v => set("paciente", v)}>
-                      <SelectTrigger><SelectValue placeholder="Selecione um paciente" /></SelectTrigger>
-                      <SelectContent>
-                        {nomesPacientes.map(nome => (
-                          <SelectItem key={nome} value={nome}>{nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input placeholder="Nome do paciente" value={formData.paciente} onChange={e => set("paciente", e.target.value)} />
-                  )}
+                  <Input
+                    placeholder="Nome do paciente"
+                    value={formData.paciente}
+                    onChange={e => set("paciente", e.target.value)}
+                    list="pac-list"
+                  />
+                  <datalist id="pac-list">
+                    {nomesPacientes.map(n => <option key={n} value={n} />)}
+                  </datalist>
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Data *</Label>
+                  <Label>Data</Label>
                   <Input type="date" value={formData.date} onChange={e => set("date", e.target.value)} />
+                  {formData.date && <p className="text-xs text-gray-400">{isoParaDisplay(formData.date)}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Horário *</Label>
+                  <Label>Horário</Label>
                   <Input type="time" value={formData.time} onChange={e => set("time", e.target.value)} />
                 </div>
               </div>

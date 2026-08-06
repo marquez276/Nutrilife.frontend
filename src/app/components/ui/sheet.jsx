@@ -1,20 +1,26 @@
 
 import * as React from "react";
+import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 import { cn } from "./utils";
+
 function Sheet({ ...props }) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
 }
-function SheetTrigger({
-  ...props
-}) {
+
+function SheetTrigger({ ...props }) {
   return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
-function SheetClose({
+}
+
+function SheetClose({ ...props }) {
   return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
-function SheetPortal({
+}
+
+function SheetPortal({ ...props }) {
   return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
-function SheetOverlay({
-  className,
+}
+
+function SheetOverlay({ className, ...props }) {
   return (
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
@@ -25,11 +31,10 @@ function SheetOverlay({
       {...props}
     />
   );
-function SheetContent({
-  children,
-  side = "right",
-} & {
-  side?: "top" | "right" | "bottom" | "left";
+}
+
+function SheetContent({ children, side = "right", className, ...props }) {
+  return (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
@@ -55,21 +60,49 @@ function SheetContent({
         </SheetPrimitive.Close>
       </SheetPrimitive.Content>
     </SheetPortal>
+  );
+}
+
 function SheetHeader({ className, ...props }) {
+  return (
     <div
       data-slot="sheet-header"
       className={cn("flex flex-col gap-1.5 p-4", className)}
+      {...props}
+    />
+  );
+}
+
 function SheetFooter({ className, ...props }) {
+  return (
+    <div
       data-slot="sheet-footer"
       className={cn("mt-auto flex flex-col gap-2 p-4", className)}
-function SheetTitle({
+      {...props}
+    />
+  );
+}
+
+function SheetTitle({ className, ...props }) {
+  return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
       className={cn("text-foreground font-semibold", className)}
-function SheetDescription({
+      {...props}
+    />
+  );
+}
+
+function SheetDescription({ className, ...props }) {
+  return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
       className={cn("text-muted-foreground text-sm", className)}
+      {...props}
+    />
+  );
+}
+
 export {
   Sheet,
   SheetTrigger,

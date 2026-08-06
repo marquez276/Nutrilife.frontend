@@ -3,33 +3,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Search, Info } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "../components/ui/badge";
 
 export default function Alimentos() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [foodDatabase, setFoodDatabase] = useState([]);
 
-  const foodDatabase = [
-    { name: "Banana", category: "Frutas", portion: "1 unidade média (100g)", calories: 105, protein: 1.3, carbs: 27, fat: 0.3, fiber: 3.1 },
-    { name: "Peito de Frango Grelhado", category: "Proteínas", portion: "100g", calories: 165, protein: 31, carbs: 0, fat: 3.6, fiber: 0 },
-    { name: "Arroz Integral Cozido", category: "Carboidratos", portion: "100g (4 colheres)", calories: 123, protein: 2.6, carbs: 25.6, fat: 1, fiber: 1.8 },
-    { name: "Brócolis Cozido", category: "Vegetais", portion: "100g", calories: 35, protein: 2.4, carbs: 7, fat: 0.4, fiber: 3.3 },
-    { name: "Ovo Cozido", category: "Proteínas", portion: "1 unidade (50g)", calories: 78, protein: 6.3, carbs: 0.6, fat: 5.3, fiber: 0 },
-    { name: "Maçã", category: "Frutas", portion: "1 unidade média (180g)", calories: 95, protein: 0.5, carbs: 25, fat: 0.3, fiber: 4.4 },
-    { name: "Batata Doce Cozida", category: "Carboidratos", portion: "100g", calories: 86, protein: 1.6, carbs: 20, fat: 0.1, fiber: 3 },
-    { name: "Salmão Grelhado", category: "Proteínas", portion: "100g", calories: 206, protein: 22, carbs: 0, fat: 13, fiber: 0 },
-    { name: "Abacate", category: "Frutas", portion: "1/4 unidade (50g)", calories: 80, protein: 1, carbs: 4.3, fat: 7.3, fiber: 3.4 },
-    { name: "Iogurte Natural", category: "Laticínios", portion: "1 pote (170g)", calories: 100, protein: 10, carbs: 13, fat: 0, fiber: 0 },
-    { name: "Feijão Preto Cozido", category: "Leguminosas", portion: "100g (1 concha)", calories: 132, protein: 8.9, carbs: 23.7, fat: 0.5, fiber: 8.3 },
-    { name: "Aveia em Flocos", category: "Carboidratos", portion: "30g (3 colheres)", calories: 117, protein: 4.2, carbs: 20, fat: 2.3, fiber: 3 },
-  ];
+  useEffect(() => {
+    fetch("/admin/alimentos")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setFoodDatabase(Array.isArray(data) ? data : []))
+      .catch(() => setFoodDatabase([]));
+  }, []);
 
   const filteredFoods = foodDatabase.filter(food =>
-    food.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    food.category.toLowerCase().includes(searchTerm.toLowerCase())
+    food.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    food.categoria?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const categories = Array.from(new Set(foodDatabase.map(food => food.category)));
+  const categories = Array.from(new Set(foodDatabase.map(food => food.categoria).filter(Boolean)));
 
   const categoryColors = {
     "Frutas": "bg-orange-100 text-orange-700",
@@ -83,40 +76,33 @@ export default function Alimentos() {
               </Card>
             </div>
           ) : (
-            filteredFoods.map((food, index) => (
-              <Card key={index} className="hover:shadow-lg transition-shadow">
+            filteredFoods.map(food => (
+              <Card key={food.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-xl mb-2">{food.name}</CardTitle>
-                      <Badge className={categoryColors[food.category] || 'bg-gray-100 text-gray-700'}>{food.category}</Badge>
+                      <CardTitle className="text-xl mb-2">{food.nome}</CardTitle>
+                      <Badge className={categoryColors[food.categoria] || 'bg-gray-100 text-gray-700'}>{food.categoria || "Geral"}</Badge>
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-gray-900">{food.calories}</p>
+                      <p className="text-3xl font-bold text-gray-900">{food.calorias}</p>
                       <p className="text-sm text-gray-500">kcal</p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600"><span className="font-medium">Porção:</span> {food.portion}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="p-3 bg-red-50 rounded-lg">
                       <p className="text-xs text-gray-600 mb-1">Proteínas</p>
-                      <p className="text-lg font-bold text-gray-900">{food.protein}g</p>
+                      <p className="text-lg font-bold text-gray-900">{food.proteina}g</p>
                     </div>
                     <div className="p-3 bg-yellow-50 rounded-lg">
                       <p className="text-xs text-gray-600 mb-1">Carboidratos</p>
-                      <p className="text-lg font-bold text-gray-900">{food.carbs}g</p>
+                      <p className="text-lg font-bold text-gray-900">{food.carboidrato}g</p>
                     </div>
                     <div className="p-3 bg-blue-50 rounded-lg">
                       <p className="text-xs text-gray-600 mb-1">Gorduras</p>
-                      <p className="text-lg font-bold text-gray-900">{food.fat}g</p>
-                    </div>
-                    <div className="p-3 bg-green-50 rounded-lg">
-                      <p className="text-xs text-gray-600 mb-1">Fibras</p>
-                      <p className="text-lg font-bold text-gray-900">{food.fiber}g</p>
+                      <p className="text-lg font-bold text-gray-900">{food.gordura}g</p>
                     </div>
                   </div>
                 </CardContent>

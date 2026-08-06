@@ -7,174 +7,177 @@ function load(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
+  } catch { return fallback; }
 }
 function save(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-const NUTRIS_INICIAIS = [
-  {
-    id: 1,
-    nome: "Dra. Maria Santos",
-    email: "maria@nutrilife.com",
-    senha: "123456",
-    crn: "12345/P",
-    telefone: "(11) 99999-9999",
-    specialty: "Nutrição Esportiva e Emagrecimento",
-    bio: "Especialista em nutrição esportiva com mais de 10 anos de experiência transformando vidas através da alimentação consciente.",
-    whatsapp: "5511999999999",
-    photo: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=400",
-    rating: 4.9,
-    prices: [
-      { label: "Consulta Inicial", value: "R$ 250" },
-      { label: "Acompanhamento Mensal", value: "R$ 150" },
-    ],
-    social: { instagram: "@dra.mariasantos", linkedin: "maria-santos-nutri", website: "www.mariasantosnutri.com.br" },
-    experience: [
-      "Nutricionista do Clube Atlético Regional (2018 - Presente)",
-      "Docente na Faculdade de Nutrição (2015 - 2020)",
-      "Pós-graduada em Comportamento Alimentar",
-    ],
-    portfolio: [
-      "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400",
-      "https://images.unsplash.com/photo-1543339308-43e59d6b73a6?w=400",
-    ],
-    videos: ["Apresentação Profissional", "Dica de Pré-treino"],
-    reviews: [
-      { id: "r1", userName: "Ana Clara", rating: 5, comment: "Atendimento excelente, muito atenciosa.", date: "05/02/2026" },
-    ],
-  },
-  {
-    id: 2,
-    nome: "Dr. Ricardo Lima",
-    email: "ricardo@nutrilife.com",
-    senha: "123456",
-    crn: "67890/P",
-    telefone: "(11) 88888-8888",
-    specialty: "Nutrição Funcional e Longevidade",
-    bio: "Focado em melhorar a saúde intestinal e longevidade dos pacientes.",
-    whatsapp: "5511888888888",
-    photo: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400",
-    rating: 4.7,
-    prices: [
-      { label: "Primeira Consulta", value: "R$ 300" },
-      { label: "Bioimpedância", value: "R$ 80" },
-    ],
-    social: { instagram: "@dr.ricardolima", website: "www.ricardolima.com" },
-    experience: [
-      "Clínica Longevidade Saudável (2012 - Presente)",
-      "Palestrante em Nutrição Funcional",
-    ],
-    portfolio: ["https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400"],
-    videos: ["Como melhorar a digestão"],
-    reviews: [
-      { id: "r2", userName: "Pedro Gomes", rating: 5, comment: "Minha disposição melhorou muito!", date: "15/02/2026" },
-    ],
-  },
-  {
-    id: 3,
-    nome: "Dra. Fernanda Alvim",
-    email: "fernanda@nutrilife.com",
-    senha: "123456",
-    crn: "11223/P",
-    telefone: "(11) 77777-7777",
-    specialty: "Nutrição Materno-Infantil",
-    bio: "Auxilio mães e crianças a terem uma relação saudável com a comida desde os primeiros meses de vida.",
-    whatsapp: "5511777777777",
-    photo: "https://images.unsplash.com/photo-1559839734-2b71f1536783?w=400",
-    rating: 5.0,
-    prices: [{ label: "Introdução Alimentar", value: "R$ 280" }],
-    social: { instagram: "@dra.fernandaalvim" },
-    experience: [
-      "Hospital Infantil Santa Luzia (2020 - Presente)",
-      "Especialista em Introdução Alimentar",
-    ],
-    portfolio: [],
-    videos: [],
-    reviews: [
-      { id: "r3", userName: "Carla Souza", rating: 5, comment: "Salvou minha introdução alimentar!", date: "20/02/2026" },
-    ],
-  },
-];
-
 export function AppProvider({ children }) {
-  const [usuarios, setUsuariosState] = useState(() => load("nutrilife_usuarios", []));
-  const [nutricionistas, setNutricionistasState] = useState(() => load("nutrilife_nutricionistas", null) ?? NUTRIS_INICIAIS);
   const [usuarioLogado, setUsuarioLogado] = useState(() => load("nutrilife_sessao", null));
+
+  function atualizarUsuarioLogado(campos) {
+    setUsuarioLogado(prev => {
+      const atualizado = { ...prev, ...campos };
+      save("nutrilife_sessao", atualizado);
+      return atualizado;
+    });
+  }
+  const [anamnese, setAnamneseState] = useState(null);
   const [refeicoes, setRefeicoesState] = useState([]);
   const [pesagens, setPesagensState] = useState([]);
   const [agendamentos, setAgendamentosState] = useState([]);
   const [pacientes, setPacientesState] = useState([]);
-  const [anamnese, setAnamneseState] = useState(null);
+  const [nutricionistas, setNutricionistasState] = useState([]);
+  const [metas, setMetasState] = useState(null);
 
+  function tryParseJson(str, fallback) {
+    try { return JSON.parse(str); } catch { return fallback; }
+  }
+
+  function carregarNutricionistas() {
+    fetch("/nutricionistas/perfis")
+      .then(r => r.json())
+      .then(perfis => {
+        if (!Array.isArray(perfis)) return;
+        const lista = perfis.map(p => ({
+          id: p.nutricionista?.id,
+          nome: p.nutricionista?.nomeCompleto || p.nutricionista?.nome || "",
+          email: p.nutricionista?.email || "",
+          crn: p.nutricionista?.crn || "",
+          telefone: p.nutricionista?.telefone || "",
+          fotoUrl: p.nutricionista?.id ? `/usuarios/${p.nutricionista.id}/imagem` : null,
+          specialty: p.especialidade || p.nutricionista?.especialidade || "",
+          bio: p.bio || "",
+          whatsapp: p.whatsapp || "",
+          instagram: p.instagram || "",
+          linkedin: p.linkedin || "",
+          website: p.website || "",
+          precos: p.precos ? tryParseJson(p.precos, []) : [],
+          experiencia: p.experiencia ? p.experiencia.split("\n").filter(Boolean) : [],
+          portfolio: p.portfolio ? p.portfolio.split("\n").filter(Boolean) : [],
+          videos: p.videos ? p.videos.split("\n").filter(Boolean) : [],
+          reviews: [],
+        }));
+        setNutricionistasState(lista);
+        lista.forEach(n => {
+          fetch(`/avaliacoes/nutricionista/${n.id}`)
+            .then(r => r.json())
+            .then(avs => {
+              if (!Array.isArray(avs)) return;
+              setNutricionistasState(prev => prev.map(x =>
+                x.id === n.id
+                  ? {
+                      ...x,
+                      reviews: avs.map(a => ({
+                        id: a.id,
+                        userName: a.clienteNome || "Paciente",
+                        rating: a.nota,
+                        comment: a.comentario,
+                        date: a.dataAvaliacao,
+                      })),
+                      rating: avs.length ? (avs.reduce((s, a) => s + a.nota, 0) / avs.length) : 0,
+                    }
+                  : x
+              ));
+            })
+            .catch(() => {});
+        });
+      })
+      .catch(() => {});
+  }
+
+  const hoje = () => new Date().toISOString().slice(0, 10);
+
+  async function carregarDadosPaciente(id) {
+    // Anamnese
+    const aRes = await fetch(`/anamnese/cliente/${id}`).catch(() => null);
+    if (aRes && aRes.ok) {
+      const d = await aRes.json();
+      setAnamneseState(d);
+      save(`anamnese_${id}`, d);
+    } else {
+      setAnamneseState(load(`anamnese_${id}`, null));
+    }
+    // Refeições do dia
+    fetch(`/registros/refeicoes/${id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { setRefeicoesState(Array.isArray(d) ? d : []); save(`refeicoes_data_${id}`, hoje()); })
+      .catch(() => setRefeicoesState([]));
+    // Pesagens + progresso
+    fetch(`/clientes/${id}/progresso`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        setPesagensState(Array.isArray(d.historico) ? d.historico : []);
+        setMetasState(prev => ({ ...prev, pesoInicial: d.pesoInicial, pesoIdeal: d.pesoIdeal, imc: d.imc, statusPeso: d.statusPeso }));
+      })
+      .catch(() => {
+        fetch(`/registros/pesagens/${id}`)
+          .then(r => r.json()).then(d => setPesagensState(Array.isArray(d) ? d : []))
+          .catch(() => setPesagensState([]));
+      });
+    // Metas
+    fetch(`/anamnese/cliente/${id}/metas`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setMetasState(d); })
+      .catch(() => {
+        fetch(`/clientes/${id}/metas`)
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d) setMetasState(d); })
+          .catch(() => {});
+      });
+    // Agenda
+    fetch(`/consultas/cliente/${id}`)
+      .then(r => r.json()).then(d => setAgendamentosState(Array.isArray(d) ? d : []))
+      .catch(() => setAgendamentosState([]));
+  }
+
+  // ── Carrega dados ao montar conforme tipo de usuário ──────────────
   useEffect(() => {
     if (!usuarioLogado) return;
+
     if (usuarioLogado.tipo === "patient") {
-      setAnamneseState(load(`anamnese_${usuarioLogado.id}`, null));
-      fetch(`/registros/refeicoes/${usuarioLogado.id}`)
-        .then(r => r.json()).then(data => setRefeicoesState(data))
-        .catch(() => setRefeicoesState(load(`refeicoes_${usuarioLogado.id}`, [])));
-      fetch(`/registros/pesagens/${usuarioLogado.id}`)
-        .then(r => r.json()).then(data => setPesagensState(data))
-        .catch(() => setPesagensState(load(`pesagens_${usuarioLogado.id}`, [])));
-      setAgendamentosState(load(`agenda_${usuarioLogado.id}`, []));
-    } else if (usuarioLogado.tipo === "nutritionist") {
-      setPacientesState(load(`pacientes_${usuarioLogado.id}`, []));
-      setAgendamentosState(load(`agenda_nutri_${usuarioLogado.id}`, []));
+      carregarDadosPaciente(usuarioLogado.id);
     }
+
+    if (usuarioLogado.tipo === "nutritionist") {
+      fetch(`/consultas/nutricionista/${usuarioLogado.id}`)
+        .then(r => r.json()).then(d => setAgendamentosState(Array.isArray(d) ? d : []))
+        .catch(() => setAgendamentosState([]));
+      setPacientesState(load(`pacientes_${usuarioLogado.id}`, []));
+    }
+
+    carregarNutricionistas();
   }, []);
 
-  function setNutricionistas(fn) {
-    setNutricionistasState(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      save("nutrilife_nutricionistas", next);
-      return next;
-    });
-  }
-  function setRefeicoes(fn, uid) {
-    setRefeicoesState(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      save(`refeicoes_${uid}`, next);
-      return next;
-    });
-  }
-  function setPesagens(fn, uid) {
-    setPesagensState(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      save(`pesagens_${uid}`, next);
-      return next;
-    });
-  }
-  function setAgendamentos(fn, key) {
-    setAgendamentosState(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      save(key, next);
-      return next;
-    });
-  }
-  function setPacientes(fn, uid) {
-    setPacientesState(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      save(`pacientes_${uid}`, next);
-      return next;
-    });
-  }
-
-  // --- Auth ---
-  async function login(email, senha, tipo) {
-    if (tipo === "admin") {
-      if (email === "admin@nutrilife.com" && senha === "123456") {
-        const admin = { id: 0, nome: "Administrador", email, tipo: "admin" };
-        setUsuarioLogado(admin);
-        save("nutrilife_sessao", admin);
-        return { ok: true };
-      }
-      return { ok: false, erro: "Credenciais administrativas incorretas." };
+  // ── Reset diário de calorias à meia-noite ─────────────────────────
+  useEffect(() => {
+    if (!usuarioLogado || usuarioLogado.tipo !== "patient") return;
+    const ultimaData = load(`refeicoes_data_${usuarioLogado.id}`, null);
+    if (ultimaData && ultimaData !== hoje()) {
+      // Novo dia: recarrega refeições do backend (retorna lista vazia para hoje)
+      fetch(`/registros/refeicoes/${usuarioLogado.id}`)
+        .then(r => r.ok ? r.json() : [])
+        .then(d => { setRefeicoesState(Array.isArray(d) ? d : []); save(`refeicoes_data_${usuarioLogado.id}`, hoje()); })
+        .catch(() => {});
     }
+    // Agenda um timer para o próximo dia
+    const agora = new Date();
+    const meianoite = new Date(agora);
+    meianoite.setHours(24, 0, 0, 0);
+    const ms = meianoite - agora;
+    const timer = setTimeout(() => {
+      fetch(`/registros/refeicoes/${usuarioLogado.id}`)
+        .then(r => r.ok ? r.json() : [])
+        .then(d => { setRefeicoesState(Array.isArray(d) ? d : []); save(`refeicoes_data_${usuarioLogado.id}`, hoje()); })
+        .catch(() => {});
+    }, ms);
+    return () => clearTimeout(timer);
+  }, [usuarioLogado]);
 
+  // ── Auth ──────────────────────────────────────────────────────────
+  async function login(email, senha, tipo) {
     try {
       const res = await fetch("/auth/login", {
         method: "POST",
@@ -186,13 +189,47 @@ export function AppProvider({ children }) {
         return { ok: false, erro: err.message || "E-mail ou senha incorretos." };
       }
       const { usuario } = await res.json();
-      const sessao = { ...usuario, nome: usuario.nomeCompleto, tipo: usuario.tipoUsuario === "NUTRICIONISTA" ? "nutritionist" : "patient" };
+
+      let tipoMapeado;
+      if (usuario.tipoUsuario === "ADMIN") tipoMapeado = "admin";
+      else if (usuario.tipoUsuario === "NUTRICIONISTA") tipoMapeado = "nutritionist";
+      else tipoMapeado = "patient";
+
+      const sessao = { ...usuario, nome: usuario.nomeCompleto, tipo: tipoMapeado };
       setUsuarioLogado(sessao);
       save("nutrilife_sessao", sessao);
-      setAnamneseState(load(`anamnese_${sessao.id}`, null));
-      setRefeicoesState(load(`refeicoes_${sessao.id}`, []));
-      setPesagensState(load(`pesagens_${sessao.id}`, []));
-      setAgendamentosState(load(`agenda_${sessao.id}`, []));
+
+      if (tipoMapeado === "patient") {
+        const aRes = await fetch(`/anamnese/cliente/${sessao.id}`).catch(() => null);
+        if (aRes && aRes.ok) {
+          const aData = await aRes.json();
+          setAnamneseState(aData);
+          save(`anamnese_${sessao.id}`, aData);
+          fetch(`/anamnese/cliente/${sessao.id}/metas`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d) setMetasState(d); })
+            .catch(() => {});
+          // Carrega demais dados do paciente
+          fetch(`/registros/refeicoes/${sessao.id}`)
+            .then(r => r.ok ? r.json() : [])
+            .then(d => { setRefeicoesState(Array.isArray(d) ? d : []); save(`refeicoes_data_${sessao.id}`, hoje()); })
+            .catch(() => {});
+          fetch(`/clientes/${sessao.id}/progresso`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d) setPesagensState(Array.isArray(d.historico) ? d.historico : []); })
+            .catch(() => {});
+          fetch(`/consultas/cliente/${sessao.id}`)
+            .then(r => r.json()).then(d => setAgendamentosState(Array.isArray(d) ? d : []))
+            .catch(() => {});
+          return { ok: true, hasAnamnese: true };
+        } else {
+          setAnamneseState(null);
+          return { ok: true, hasAnamnese: false };
+        }
+      }
+      if (tipoMapeado === "nutritionist") {
+        return { ok: true, codStatus: sessao.codStatus };
+      }
       return { ok: true };
     } catch {
       return { ok: false, erro: "Erro ao conectar com o servidor." };
@@ -207,32 +244,21 @@ export function AppProvider({ children }) {
     setPesagensState([]);
     setAgendamentosState([]);
     setPacientesState([]);
+    setNutricionistasState([]);
+    setMetasState(null);
   }
 
-  // --- Cadastro ---
+  // ── Cadastro ──────────────────────────────────────────────────────
   async function cadastrarPaciente(dados) {
     try {
       const res = await fetch("/usuarios/paciente", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nomeCompleto:   dados.nome,
-          email:          dados.email,
-          senha:          dados.senha,
-          telefone:       dados.telefone   || null,
-          cpf:            dados.cpf        || null,
-          dataNascimento: dados.dataNascimento || null,
-        }),
+        body: JSON.stringify({ nomeCompleto: dados.nome, email: dados.email, senha: dados.senha, telefone: dados.telefone || null, cpf: dados.cpf || null, dataNascimento: dados.dataNascimento || null }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        return { ok: false, erro: err.message || "Erro ao criar conta." };
-      }
-      const usuario = await res.json();
-      return { ok: true, usuario };
-    } catch {
-      return { ok: false, erro: "Erro ao conectar com o servidor." };
-    }
+      if (!res.ok) { const err = await res.json().catch(() => ({})); return { ok: false, erro: err.message || "Erro ao criar conta." }; }
+      return { ok: true, usuario: await res.json() };
+    } catch { return { ok: false, erro: "Erro ao conectar com o servidor." }; }
   }
 
   async function cadastrarNutricionista(dados) {
@@ -240,168 +266,186 @@ export function AppProvider({ children }) {
       const res = await fetch("/usuarios/nutricionista", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nomeCompleto: dados.nome,
-          email:        dados.email,
-          senha:        dados.senha,
-          telefone:     dados.telefone,
-          crn:          dados.crn,
-        }),
+        body: JSON.stringify({ nomeCompleto: dados.nome, email: dados.email, senha: dados.senha, telefone: dados.telefone, crn: dados.crn, especialidade: dados.especialidade }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        return { ok: false, erro: err.message || "Erro ao criar conta." };
-      }
+      if (!res.ok) { const err = await res.json().catch(() => ({})); return { ok: false, erro: err.message || "Erro ao criar conta." }; }
       return { ok: true };
-    } catch {
-      return { ok: false, erro: "Erro ao conectar com o servidor." };
-    }
+    } catch { return { ok: false, erro: "Erro ao conectar com o servidor." }; }
   }
 
-  // --- Anamnese ---
+  // ── Anamnese ──────────────────────────────────────────────────────
   async function salvarAnamnese(dados) {
-    const idUsuario = usuarioLogado?.id;
-    if (!idUsuario) {
-      setAnamneseState(dados);
-      return;
-    }
+    const id = usuarioLogado?.id;
+    if (!id) { setAnamneseState(dados); return; }
     try {
       const res = await fetch("/anamnese", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          peso:         parseFloat(dados.peso)   || 0,
-          altura:       parseFloat(dados.altura) || 0,
-          idade:        parseInt(dados.idade)    || null,
-          sexo:         dados.sexo === "masculino" ? "M" : "F",
-          objetivo:     dados.objetivo ? dados.objetivo.toUpperCase() : "MANUTENCAO",
-          atividade:    dados.nivelAtividade || "sedentario",
-          sono:         parseInt(dados.horasSono) || null,
+          peso: parseFloat(dados.peso) || 0,
+          altura: parseFloat(dados.altura) || 0,
+          idade: parseInt(dados.idade) || null,
+          sexo: dados.sexo === "masculino" ? "M" : "F",
+          objetivo: dados.objetivo,
+          atividade: dados.nivelAtividade || "sedentario",
+          sono: parseInt(dados.horasSono) || null,
           comorbidades: dados.comorbidades || null,
-          restricoes:   dados.restricoes   || null,
-          cliente:      { id: idUsuario },
+          restricoes: dados.restricoes || null,
+          cliente: { id },
         }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.message || "Erro ao salvar anamnese.");
-        return;
-      }
+      if (!res.ok) { const err = await res.json().catch(() => ({})); toast.error(err.message || "Erro ao salvar anamnese."); return; }
       const salvo = await res.json();
       setAnamneseState(salvo);
-      save(`anamnese_${idUsuario}`, salvo);
-    } catch {
-      setAnamneseState(dados);
-      save(`anamnese_${idUsuario}`, dados);
-    }
+      save(`anamnese_${id}`, salvo);
+      // Recalculate and persist goals after anamnese update
+      fetch(`/anamnese/cliente/${id}/metas`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setMetasState(d); })
+        .catch(() => {});
+    } catch { setAnamneseState(dados); save(`anamnese_${id}`, dados); }
   }
 
-  // --- Refeições ---
+  // ── Refeições ─────────────────────────────────────────────────────
   async function adicionarRefeicao(refeicao) {
     if (!usuarioLogado) return;
     try {
-      const res = await fetch("/registros/refeicoes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...refeicao, cliente: { id: usuarioLogado.id } }),
-      });
+      const res = await fetch("/registros/refeicoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...refeicao, cliente: { id: usuarioLogado.id } }) });
       const salva = await res.json();
       setRefeicoesState(prev => [...prev, salva]);
-    } catch {
-      setRefeicoes(prev => [...prev, { ...refeicao, id: Date.now() }], usuarioLogado.id);
-    }
+    } catch { setRefeicoesState(prev => [...prev, { ...refeicao, id: Date.now() }]); }
   }
   async function editarRefeicao(id, dados) {
     if (!usuarioLogado) return;
     try {
-      const res = await fetch(`/registros/refeicoes/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dados),
-      });
+      const res = await fetch(`/registros/refeicoes/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
       const atualizada = await res.json();
       setRefeicoesState(prev => prev.map(r => r.id === id ? atualizada : r));
-    } catch {
-      setRefeicoes(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r), usuarioLogado.id);
-    }
+    } catch { setRefeicoesState(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r)); }
   }
   async function removerRefeicao(id) {
     if (!usuarioLogado) return;
-    try {
-      await fetch(`/registros/refeicoes/${id}`, { method: "DELETE" });
-      setRefeicoesState(prev => prev.filter(r => r.id !== id));
-    } catch {
-      setRefeicoes(prev => prev.filter(r => r.id !== id), usuarioLogado.id);
-    }
+    try { await fetch(`/registros/refeicoes/${id}`, { method: "DELETE" }); } catch {}
+    setRefeicoesState(prev => prev.filter(r => r.id !== id));
   }
 
-  // --- Pesagens ---
+  // ── Pesagens ──────────────────────────────────────────────────────
   async function adicionarPesagem(pesagem) {
     if (!usuarioLogado) return;
     try {
-      const res = await fetch("/registros/pesagens", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...pesagem, cliente: { id: usuarioLogado.id } }),
-      });
+      const res = await fetch("/registros/pesagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...pesagem, cliente: { id: usuarioLogado.id } }) });
       const salva = await res.json();
       setPesagensState(prev => [...prev, salva]);
-    } catch {
-      setPesagens(prev => [...prev, { ...pesagem, id: Date.now() }], usuarioLogado.id);
-    }
+      fetch(`/anamnese/cliente/${usuarioLogado.id}/metas`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setMetasState(d); })
+        .catch(() => {});
+    } catch { setPesagensState(prev => [...prev, { ...pesagem, id: Date.now() }]); }
   }
 
-  // --- Agenda ---
-  function agendaKey() {
-    if (!usuarioLogado) return null;
-    return usuarioLogado.tipo === "nutritionist"
-      ? `agenda_nutri_${usuarioLogado.id}`
-      : `agenda_${usuarioLogado.id}`;
-  }
-  async function adicionarAgendamento(agendamento) {
-    const key = agendaKey();
-    if (!key) return;
-    // salva no localStorage (agenda não precisa de IDs do banco)
-    const novo = { ...agendamento, id: Date.now().toString(), status: "confirmed" };
-    setAgendamentos(prev => [...prev, novo], key);
-  }
-  function editarAgendamento(id, dados) {
-    const key = agendaKey();
-    if (!key) return;
-    fetch(`/consultas/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) }).catch(() => {});
-    setAgendamentos(prev => prev.map(a => a.id === id ? { ...a, ...dados } : a), key);
-  }
-  function removerAgendamento(id) {
-    const key = agendaKey();
-    if (!key) return;
-    fetch(`/consultas/${id}`, { method: "DELETE" }).catch(() => {});
-    setAgendamentos(prev => prev.filter(a => a.id !== id), key);
+  async function removerPesagem(id) {
+    if (!usuarioLogado) return;
+    try { await fetch(`/registros/pesagens/${id}`, { method: "DELETE" }); } catch {}
+    setPesagensState(prev => prev.filter(p => p.id !== id));
+    fetch(`/anamnese/cliente/${usuarioLogado.id}/metas`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setMetasState(d); })
+      .catch(() => {});
   }
 
-  // --- Pacientes (nutricionista) ---
+  // ── Agenda ────────────────────────────────────────────────────────
+  async function adicionarAgendamento(ag) {
+    if (!usuarioLogado) return;
+    const body = {
+      date: ag.date,
+      time: ag.time,
+      videoLink: ag.videoLink || null,
+      observations: ag.observations || null,
+      paciente: ag.paciente || null,
+      nutritionist: ag.nutritionist || null,
+      clienteId: usuarioLogado.tipo === "patient" ? usuarioLogado.id : null,
+      nutricionistaId: usuarioLogado.tipo === "nutritionist" ? usuarioLogado.id : null,
+    };
+    try {
+      const res = await fetch("/consultas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const salvo = await res.json();
+      setAgendamentosState(prev => [...prev, salvo]);
+    } catch { setAgendamentosState(prev => [...prev, { ...ag, id: Date.now().toString() }]); }
+  }
+  async function editarAgendamento(id, dados) {
+    if (!usuarioLogado) return;
+    const body = {
+      date: dados.date,
+      time: dados.time,
+      videoLink: dados.videoLink || null,
+      observations: dados.observations || null,
+      paciente: dados.paciente || null,
+      nutritionist: dados.nutritionist || null,
+      clienteId: usuarioLogado.tipo === "patient" ? usuarioLogado.id : null,
+      nutricionistaId: usuarioLogado.tipo === "nutritionist" ? usuarioLogado.id : null,
+    };
+    try {
+      const res = await fetch(`/consultas/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const atualizada = await res.json();
+      setAgendamentosState(prev => prev.map(a => a.id === id ? atualizada : a));
+    } catch { setAgendamentosState(prev => prev.map(a => a.id === id ? { ...a, ...dados } : a)); }
+  }
+  async function removerAgendamento(id) {
+    try { await fetch(`/consultas/${id}`, { method: "DELETE" }); } catch {}
+    setAgendamentosState(prev => prev.filter(a => a.id !== id));
+  }
+
+  // ── Pacientes (nutricionista) ─────────────────────────────────────
   function adicionarPaciente(paciente) {
     if (!usuarioLogado) return;
     const novo = { ...paciente, id: Date.now(), status: "Em dia", progress: 0, evolution: [] };
-    setPacientes(prev => [...prev, novo], usuarioLogado.id);
+    setPacientesState(prev => { const next = [...prev, novo]; save(`pacientes_${usuarioLogado.id}`, next); return next; });
   }
 
-  // --- Avaliações ---
-  function adicionarAvaliacao(nutricionistaId, avaliacao) {
-    setNutricionistas(prev =>
-      prev.map(n => n.id === nutricionistaId ? { ...n, reviews: [avaliacao, ...n.reviews] } : n)
-    );
+  // ── Avaliações ────────────────────────────────────────────────────
+  async function adicionarAvaliacao(nutricionistaId, avaliacao) {
+    if (!usuarioLogado) return;
+    try {
+      const res = await fetch("/avaliacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nutricionista: { id: nutricionistaId },
+          cliente: { id: usuarioLogado.id },
+          nota: avaliacao.rating,
+          comentario: avaliacao.comment,
+        }),
+      });
+      if (res.ok) {
+        const salva = await res.json();
+        const novaReview = {
+          id: salva.id,
+          userName: salva.clienteNome || usuarioLogado.nome || "Paciente",
+          rating: salva.nota,
+          comment: salva.comentario,
+          date: salva.dataAvaliacao,
+        };
+        setNutricionistasState(prev => prev.map(n =>
+          n.id === nutricionistaId
+            ? { ...n, reviews: [novaReview, ...(n.reviews || [])] }
+            : n
+        ));
+      }
+    } catch {}
   }
 
   return (
     <AppContext.Provider value={{
-      usuarioLogado, login, logout,
-      usuarios, cadastrarPaciente, cadastrarNutricionista,
-      nutricionistas, adicionarAvaliacao,
-      anamnese, salvarAnamnese,
+      usuarioLogado, login, logout, atualizarUsuarioLogado,
+      nutricionistas, adicionarAvaliacao, recarregarNutricionistas: carregarNutricionistas,
+      anamnese, salvarAnamnese, recarregarDadosPaciente: carregarDadosPaciente,
+      metas,
       refeicoes, adicionarRefeicao, editarRefeicao, removerRefeicao,
-      pesagens, adicionarPesagem,
+      pesagens, adicionarPesagem, removerPesagem,
       agendamentos, adicionarAgendamento, editarAgendamento, removerAgendamento,
       pacientes, adicionarPaciente,
+      cadastrarPaciente, cadastrarNutricionista,
+      usuarios: [],
     }}>
       {children}
     </AppContext.Provider>

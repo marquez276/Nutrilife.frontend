@@ -4,18 +4,54 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Checkbox } from "../components/ui/checkbox";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
 import { ClipboardCheck, ArrowRight, User, Activity, Moon } from "lucide-react";
 import { useApp } from "../context/AppContext";
 
-const COMORBIDADES = ["Diabetes", "Hipertensão", "Colesterol alto", "Hipotireoidismo", "Obesidade", "Nenhuma"];
-const RESTRICOES   = ["Lactose", "Glúten", "Frutos do mar", "Amendoim", "Vegano", "Vegetariano", "Nenhuma"];
+const COMORBIDADES = [
+  "Diabetes tipo 1",
+  "Diabetes tipo 2",
+  "Hipertensão arterial",
+  "Colesterol alto",
+  "Triglicerídeos altos",
+  "Hipotireoidismo",
+  "Hipertireoidismo",
+  "Obesidade",
+  "Síndrome metabólica",
+  "Doença celíaca",
+  "Intolerância à lactose",
+  "Anemia",
+  "Nenhuma",
+];
+
+const RESTRICOES = [
+  "Lactose",
+  "Glúten",
+  "Frutos do mar",
+  "Amendoim",
+  "Ovos",
+  "Soja",
+  "Nozes e castanhas",
+  "Vegano",
+  "Vegetariano",
+  "Ovolactovegetariano",
+  "Nenhuma",
+];
+
+const HORAS_SONO = Array.from({ length: 12 }, (_, i) => String(i + 1));
 
 export default function FichaAnamnese() {
   const navigate = useNavigate();
-  const { salvarAnamnese } = useApp();
+  const { salvarAnamnese, anamnese, usuarioLogado } = useApp();
+
+  // Redirect away if anamnesis already exists (guards direct URL access)
+  useEffect(() => {
+    if (!usuarioLogado) { navigate("/login"); return; }
+    if (usuarioLogado.tipo !== "patient") { navigate("/dashboard"); return; }
+    if (anamnese?.id) { navigate("/dashboard"); }
+  }, [anamnese, usuarioLogado]);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     peso: "", altura: "", idade: "", objetivo: "", sexo: "",
@@ -29,15 +65,26 @@ export default function FichaAnamnese() {
   const toggleCheck = (field, valor) => {
     setFormData(prev => {
       const lista = prev[field];
-      if (lista.includes(valor)) return { ...prev, [field]: lista.filter(v => v !== valor) };
-      return { ...prev, [field]: [...lista, valor] };
+      // se selecionar "Nenhuma", desmarca todos os outros
+      if (valor === "Nenhuma") return { ...prev, [field]: lista.includes("Nenhuma") ? [] : ["Nenhuma"] };
+      // se selecionar outro, remove "Nenhuma"
+      const semNenhuma = lista.filter(v => v !== "Nenhuma");
+      if (semNenhuma.includes(valor)) return { ...prev, [field]: semNenhuma.filter(v => v !== valor) };
+      return { ...prev, [field]: [...semNenhuma, valor] };
     });
   };
 
   const handleNext = async () => {
-    if (step === 1 && (!formData.peso || !formData.altura || !formData.idade || !formData.objetivo || !formData.sexo)) {
-      toast.error("Preencha todos os campos do Passo 1.");
-      return;
+    if (step === 1) {
+      if (!formData.peso || !formData.altura || !formData.idade || !formData.objetivo || !formData.sexo) {
+        toast.error("Preencha todos os campos do Passo 1.");
+        return;
+      }
+      const idade = parseInt(formData.idade);
+      if (isNaN(idade) || idade < 1 || idade > 120) {
+        toast.error("Idade deve ser entre 1 e 120 anos.");
+        return;
+      }
     }
     if (step === 3 && (!formData.nivelAtividade || !formData.horasSono)) {
       toast.error("Preencha o nível de atividade e as horas de sono.");
@@ -45,7 +92,6 @@ export default function FichaAnamnese() {
     }
     if (step < 3) { setStep(step + 1); return; }
 
-    // converte arrays para string separada por vírgula antes de salvar
     await salvarAnamnese({
       ...formData,
       comorbidades: formData.comorbidades.join(", "),
@@ -72,6 +118,7 @@ export default function FichaAnamnese() {
             ))}
           </div>
 
+          {/* ── PASSO 1: Dados Físicos ── */}
           {step === 1 && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-green-700 font-bold mb-4">
@@ -80,15 +127,24 @@ export default function FichaAnamnese() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Peso Atual (kg)</Label>
-                  <Input type="number" placeholder="75.5" value={formData.peso} onChange={e => set("peso", e.target.value)} />
+                  <Input type="number" min="1" max="500" step="0.1" placeholder="75.5"
+                    value={formData.peso} onChange={e => set("peso", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Altura (cm)</Label>
-                  <Input type="number" placeholder="175" value={formData.altura} onChange={e => set("altura", e.target.value)} />
+                  <Input type="number" min="50" max="250" placeholder="175"
+                    value={formData.altura} onChange={e => set("altura", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Idade</Label>
-                  <Input type="number" placeholder="25" value={formData.idade} onChange={e => set("idade", e.target.value)} />
+                  <Input type="number" min="1" max="120" placeholder="25"
+                    value={formData.idade}
+                    onChange={e => {
+                      const v = parseInt(e.target.value);
+                      if (e.target.value === "" || (v >= 1 && v <= 120)) set("idade", e.target.value);
+                    }}
+                  />
+                  <p className="text-xs text-gray-400">Máximo: 120 anos</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Sexo Biológico</Label>
@@ -100,15 +156,15 @@ export default function FichaAnamnese() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 col-span-2">
                   <Label>Objetivo Principal</Label>
                   <Select onValueChange={v => set("objetivo", v)}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="emagrecimento">Emagrecimento</SelectItem>
-                      <SelectItem value="hipertrofia">Ganho de Massa</SelectItem>
-                      <SelectItem value="manutencao">Manutenção</SelectItem>
-                      <SelectItem value="performance">Performance</SelectItem>
+                      <SelectItem value="EMAGRECIMENTO">Emagrecimento</SelectItem>
+                      <SelectItem value="HIPERTROFIA">Ganho de Massa</SelectItem>
+                      <SelectItem value="MANUTENCAO">Manutenção</SelectItem>
+                      <SelectItem value="PERFORMANCE">Performance</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -116,6 +172,7 @@ export default function FichaAnamnese() {
             </div>
           )}
 
+          {/* ── PASSO 2: Saúde e Restrições ── */}
           {step === 2 && (
             <div className="space-y-6">
               <div className="flex items-center gap-2 text-green-700 font-bold mb-4">
@@ -156,6 +213,7 @@ export default function FichaAnamnese() {
             </div>
           )}
 
+          {/* ── PASSO 3: Estilo de Vida ── */}
           {step === 3 && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-green-700 font-bold mb-4">
@@ -167,15 +225,23 @@ export default function FichaAnamnese() {
                   <SelectTrigger><SelectValue placeholder="Como é sua rotina?" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="sedentario">Sedentário</SelectItem>
-                    <SelectItem value="leve">Leve (1-3x/semana)</SelectItem>
-                    <SelectItem value="moderado">Moderado (3-5x/semana)</SelectItem>
-                    <SelectItem value="intenso">Intenso (6-7x/semana)</SelectItem>
+                    <SelectItem value="leve">Leve (1–3x/semana)</SelectItem>
+                    <SelectItem value="moderado">Moderado (3–5x/semana)</SelectItem>
+                    <SelectItem value="intenso">Intenso (6–7x/semana)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Horas de Sono por Noite</Label>
-                <Input type="number" placeholder="8" value={formData.horasSono} onChange={e => set("horasSono", e.target.value)} />
+                <Select onValueChange={v => set("horasSono", v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {HORAS_SONO.map(h => (
+                      <SelectItem key={h} value={h}>{h} {h === "1" ? "hora" : "horas"}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">Máximo: 12 horas</p>
               </div>
             </div>
           )}
