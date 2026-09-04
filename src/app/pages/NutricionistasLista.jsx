@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Star, Search, MessageCircle, Instagram, Globe, Linkedin, Video, Award, TrendingUp, DollarSign, Send } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -12,11 +12,13 @@ import { toast } from "sonner";
 import { useApp } from "../context/AppContext";
 
 export default function NutricionistasLista() {
-  const { nutricionistas, adicionarAvaliacao, usuarioLogado } = useApp();
+  const { nutricionistas, adicionarAvaliacao, usuarioLogado, recarregarNutricionistas } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedNutri, setSelectedNutri] = useState(null);
   const [newReview, setNewReview] = useState({ rating: 5, comment: "" });
   const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => { recarregarNutricionistas(); }, []);
 
   const filteredNutris = nutricionistas.filter(n =>
     (n.nome || "").toLowerCase().includes(searchTerm.toLowerCase()) ||

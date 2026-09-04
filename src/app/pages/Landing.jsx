@@ -126,6 +126,23 @@ export default function Landing() {
         </div>
       </section>
 
+      <section className="bg-amber-50 border-t border-amber-100 py-14">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-2xl mb-2">💚</p>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">Ajude o NutriLife a continuar gratuito</h3>
+          <p className="text-gray-600 mb-6">
+            O NutriLife é gratuito para todos. Se ele te ajudou de alguma forma, considere fazer uma doação via PIX — qualquer valor faz diferença e nos ajuda a manter o site no ar para milhares de pessoas.
+          </p>
+          <div className="inline-flex items-center gap-3 bg-white border border-amber-200 rounded-2xl px-6 py-4 shadow-sm">
+            <div className="text-left">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Chave PIX</p>
+              <p className="text-xl font-bold text-gray-900 font-mono">11974702387</p>
+              <p className="text-xs text-gray-400 mt-1">Qualquer valor é bem-vindo 🙏</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <footer className="bg-gray-900 text-gray-300 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h4 className="text-2xl font-bold text-white mb-2">NutriLife</h4>

@@ -123,7 +123,7 @@ export default function Cadastro() {
     });
     if (!resultado.ok) { toast.error(resultado.erro); return; }
     toast.success("Conta profissional criada!");
-    navigate("/nutricionista-pagamento");
+    navigate("/login");
   };
 
   return (

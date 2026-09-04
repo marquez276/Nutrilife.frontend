@@ -25,7 +25,6 @@ export default defineConfig({
       '/avaliacoes': { target: 'http://localhost:8080', changeOrigin: true },
       '/admin': { target: 'http://localhost:8080', changeOrigin: true },
       '/prontuario': { target: 'http://localhost:8080', changeOrigin: true },
-      '/pagamentos': { target: 'http://localhost:8080', changeOrigin: true },
     }
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],

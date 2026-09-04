@@ -10,7 +10,6 @@ import Evolucao from "./pages/Evolucao";
 import Alimentos from "./pages/Alimentos";
 import Nutricionista from "./pages/Nutricionista";
 import Agenda from "./pages/Agenda";
-
 import AgendaNutricionista from "./pages/Agenda";
 import Perfil from "./pages/Perfil";
 import NutricionistasLista from "./pages/NutricionistasLista";
@@ -19,8 +18,6 @@ import AdminPerfil from "./pages/AdminPerfil";
 import NutricionistaPerfil from "./pages/NutricionistaPerfil";
 import GerenciarAlimentos from "./pages/GerenciarAlimentos";
 import FichaAnamnese from "./pages/FichaAnamnese";
-import NutricionistaPagamento from "./pages/NutricionistaPagamento";
-import AguardandoAprovacao from "./pages/AguardandoAprovacao";
 import Consultas from "./pages/Consultas";
 import Loja from "./pages/Loja";
 
@@ -40,14 +37,6 @@ export const router = createBrowserRouter([
   {
     path: "/anamnese",
     Component: FichaAnamnese,
-  },
-  {
-    path: "/nutricionista-pagamento",
-    Component: NutricionistaPagamento,
-  },
-  {
-    path: "/aguardando-aprovacao",
-    Component: AguardandoAprovacao,
   },
   {
     path: "/dashboard",
