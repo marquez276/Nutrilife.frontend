@@ -9,6 +9,7 @@ import { Progress } from "../components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
 import { toast } from "sonner";
 import { useApp } from "../context/AppContext";
+import { apiFetch } from "../api";
 
 const EMPTY_CUSTOM = { name: "", quantity: "", calories: "", proteina: "", carboidrato: "", gordura: "", time: "" };
 
@@ -20,9 +21,9 @@ export default function Calorias() {
   const [alimentos, setAlimentos] = useState([]);
 
   useEffect(() => {
-    fetch("/admin/alimentos")
+    apiFetch("/admin/alimentos")
       .then(r => r.ok ? r.json() : [])
-      .then(data => setAlimentos(Array.isArray(data) ? data : []))
+      .then(data => setAlimentos(Array.isArray(data) ? data.filter(f => f.ativo !== false) : []))
       .catch(() => setAlimentos([]));
   }, []);
 
@@ -43,7 +44,7 @@ export default function Calorias() {
       return;
     }
     try {
-      await fetch("/alimentos/customizado", {
+      await apiFetch("/alimentos/customizado", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

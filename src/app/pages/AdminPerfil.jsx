@@ -8,28 +8,53 @@ import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Badge } from "../components/ui/badge";
 import { useApp } from "../context/AppContext";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { apiFetch, apiJson } from "../api";
 
 const PAGE_SIZE = 20;
 
 export default function AdminPerfil() {
-  const { usuarioLogado } = useApp();
+  const { usuarioLogado, atualizarUsuarioLogado } = useApp();
   const [activeSection, setActiveSection] = useState("profile");
 
   // ── Perfil
   const adminNome  = usuarioLogado?.nome  || "Administrador";
   const adminEmail = usuarioLogado?.email || "—";
+  const [form, setForm] = useState({ nome: adminNome, telefone: usuarioLogado?.telefone || "", senhaAtual: "", novaSenha: "" });
+  const [salvando, setSalvando] = useState(false);
+  const set = (campo) => (e) => setForm(f => ({ ...f, [campo]: e.target.value }));
+
+  const salvarPerfil = async (e) => {
+    e.preventDefault();
+    setSalvando(true);
+    try {
+      const salvo = await apiJson("/admin/perfil", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      atualizarUsuarioLogado({ nome: salvo.nome, nomeCompleto: salvo.nome, telefone: salvo.telefone });
+      setForm(f => ({ ...f, senhaAtual: "", novaSenha: "" }));
+      toast.success("Perfil atualizado!");
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
 
   // ── Admins pendentes
   const [pendentes, setPendentes] = useState([]);
   useEffect(() => {
-    fetch("/admin/pendentes")
+    apiFetch("/admin/pendentes")
       .then(r => r.json())
       .then(data => setPendentes(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
 
   const aprovarAdmin = (id) => {
-    fetch(`/admin/${id}/aprovar`, { method: "PUT" })
+    apiFetch(`/admin/${id}/aprovar`, { method: "PUT" })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(() => {
         setPendentes(prev => prev.filter(a => a.id !== id));
@@ -42,7 +67,7 @@ export default function AdminPerfil() {
   const [stats, setStats] = useState(null);
   useEffect(() => {
     if (activeSection !== "reports") return;
-    fetch("/admin/stats")
+    apiFetch("/admin/stats")
       .then(r => r.json())
       .then(setStats)
       .catch(() => setStats(null));
@@ -63,7 +88,7 @@ export default function AdminPerfil() {
 
   function fetchLogs(page, replace = false) {
     setLoadingLogs(true);
-    fetch(`/admin/logs?page=${page}&size=${PAGE_SIZE}`)
+    apiFetch(`/admin/logs?page=${page}&size=${PAGE_SIZE}`)
       .then(r => r.json())
       .then(data => {
         setLogs(prev => replace ? data.content : [...prev, ...data.content]);
@@ -123,18 +148,35 @@ export default function AdminPerfil() {
               <>
                 <Card>
                   <CardHeader><CardTitle>Dados de Acesso</CardTitle></CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-gray-500">Os dados de acesso do administrador são gerenciados internamente e não podem ser alterados por aqui.</p>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Nome</p>
-                        <p className="font-medium text-gray-900">{adminNome}</p>
+                  <CardContent>
+                    <form onSubmit={salvarPerfil} className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="p-nome">Nome</Label>
+                        <Input id="p-nome" value={form.nome} onChange={set("nome")} maxLength={100} required />
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">E-mail</p>
-                        <p className="font-medium text-gray-900">{adminEmail}</p>
+                      <div className="space-y-2">
+                        <Label htmlFor="p-email">E-mail (não editável)</Label>
+                        <Input id="p-email" value={adminEmail} disabled />
                       </div>
-                    </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="p-tel">Telefone</Label>
+                        <Input id="p-tel" value={form.telefone} onChange={set("telefone")} maxLength={20} />
+                      </div>
+                      <div className="hidden md:block" />
+                      <div className="space-y-2">
+                        <Label htmlFor="p-atual">Senha atual (só para trocar a senha)</Label>
+                        <Input id="p-atual" type="password" value={form.senhaAtual} onChange={set("senhaAtual")} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="p-nova">Nova senha</Label>
+                        <Input id="p-nova" type="password" value={form.novaSenha} onChange={set("novaSenha")} minLength={form.novaSenha ? 6 : undefined} />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={salvando}>
+                          {salvando ? "Salvando..." : "Salvar alterações"}
+                        </Button>
+                      </div>
+                    </form>
                   </CardContent>
                 </Card>
 
@@ -183,8 +225,8 @@ export default function AdminPerfil() {
                     <div className="grid md:grid-cols-2 gap-6">
                       {[
                         { bg: "bg-green-50", iconBg: "bg-green-600", Icon: Database, label: "Total de Cadastros", value: stats.totalCadastros ?? "—", sub: `${stats.totalPacientes ?? 0} pacientes + ${stats.totalNutricionistas ?? 0} nutricionistas` },
-                        { bg: "bg-blue-50", iconBg: "bg-blue-600", Icon: Activity, label: "Nutricionistas Ativos", value: stats.totalNutricionistas ?? "—", sub: "Cadastrados na plataforma" },
-                        { bg: "bg-amber-50", iconBg: "bg-amber-600", Icon: ShieldCheck, label: "Pagamentos Pendentes", value: stats.pagamentosPendentes ?? "—", sub: "Aguardando aprovação" },
+                        { bg: "bg-blue-50", iconBg: "bg-blue-600", Icon: Activity, label: "Nutricionistas Ativos", value: stats.nutricionistasAtivos ?? "—", sub: `${stats.totalNutricionistas ?? 0} cadastrados na plataforma` },
+                        { bg: "bg-amber-50", iconBg: "bg-amber-600", Icon: ShieldCheck, label: "Nutricionistas Pendentes", value: stats.nutricionistasPendentes ?? "—", sub: "Aguardando aprovação do admin" },
                         { bg: "bg-purple-50", iconBg: "bg-purple-600", Icon: FileText, label: "Total de Logs", value: stats.totalLogs ?? "—", sub: "Registros de atividade" },
                       ].map(({ bg, iconBg, Icon, label, value, sub }, i) => (
                         <div key={i} className={`p-6 ${bg} rounded-xl`}>

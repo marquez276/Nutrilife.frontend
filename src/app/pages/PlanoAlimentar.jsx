@@ -5,6 +5,7 @@ import { Coffee, Sun, Cookie, Moon, RefreshCw, Download } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import { toast } from "sonner";
+import { apiFetch } from "../api";
 
 const icones = [Coffee, Sun, Cookie, Moon];
 const cores = [
@@ -28,7 +29,7 @@ export default function PlanoAlimentar() {
       : `/plano/gerar/${usuarioLogado.id}`;
     forcar ? setRegenerando(true) : setLoading(true);
     setErro("");
-    fetch(url, { method: "POST" })
+    apiFetch(url, { method: "POST" })
       .then(async res => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));

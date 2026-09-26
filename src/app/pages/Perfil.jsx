@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
+import { apiFetch } from "../api";
 
 const OBJETIVOS = [
   { value: "EMAGRECIMENTO", label: "Emagrecimento" },
@@ -90,7 +91,7 @@ export default function Perfil() {
   useEffect(() => {
     if (!usuarioLogado?.id) return;
     setFotoValida(false);
-    fetch(`/usuarios/${usuarioLogado.id}/imagem`)
+    apiFetch(`/usuarios/${usuarioLogado.id}/imagem`)
       .then(r => { if (r.ok) { setFotoUrl(`/usuarios/${usuarioLogado.id}/imagem?t=${Date.now()}`); setFotoValida(true); } })
       .catch(() => {});
   }, [usuarioLogado?.id]);
@@ -120,7 +121,7 @@ export default function Perfil() {
       if (fotoBlob) {
         const fd = new FormData();
         fd.append("file", fotoBlob);
-        const r = await fetch(`/usuarios/${usuarioLogado?.id}/imagem`, { method: "POST", body: fd });
+        const r = await apiFetch(`/usuarios/${usuarioLogado?.id}/imagem`, { method: "POST", body: fd });
         if (r.ok) {
           setFotoUrl(`/usuarios/${usuarioLogado?.id}/imagem?t=${Date.now()}`);
           setFotoValida(true);
@@ -131,7 +132,7 @@ export default function Perfil() {
       }
 
       // 2. Dados de cadastro
-      await fetch(`/usuarios/${usuarioLogado?.id}`, {
+      await apiFetch(`/usuarios/${usuarioLogado?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -142,7 +143,7 @@ export default function Perfil() {
 
       // 3. Anamnese — usa salvarAnamnese do contexto (PUT se já existe, POST se não)
       if (anamnese?.id) {
-        await fetch(`/anamnese/${anamnese.id}`, {
+        await apiFetch(`/anamnese/${anamnese.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -195,7 +196,7 @@ export default function Perfil() {
     setFotoBlob(null);
     // Restaura foto do backend
     if (usuarioLogado?.id) {
-      fetch(`/usuarios/${usuarioLogado.id}/imagem`)
+      apiFetch(`/usuarios/${usuarioLogado.id}/imagem`)
         .then(r => { if (r.ok) { setFotoUrl(`/usuarios/${usuarioLogado.id}/imagem?t=${Date.now()}`); setFotoValida(true); } else { setFotoValida(false); } })
         .catch(() => setFotoValida(false));
     }

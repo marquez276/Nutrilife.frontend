@@ -3,6 +3,14 @@ import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
+// Prefixos que pertencem ao backend. Vários coincidem com rotas de página do React (/admin, /anamnese,
+// /nutricionistas, /consultas...), então navegação/F5 do navegador (Accept: text/html) volta para o SPA.
+const backend = {
+  target: 'http://localhost:8080',
+  changeOrigin: true,
+  bypass: (req) => (req.headers.accept?.includes('text/html') ? '/index.html' : undefined),
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -14,18 +22,10 @@ export default defineConfig({
     },
   },
   server: {
-    proxy: {
-      '/auth': { target: 'http://localhost:8080', changeOrigin: true },
-      '/usuarios': { target: 'http://localhost:8080', changeOrigin: true },
-      '/anamnese': { target: 'http://localhost:8080', changeOrigin: true },
-      '/registros': { target: 'http://localhost:8080', changeOrigin: true },
-      '/consultas': { target: 'http://localhost:8080', changeOrigin: true },
-      '/plano': { target: 'http://localhost:8080', changeOrigin: true },
-      '/nutricionistas': { target: 'http://localhost:8080', changeOrigin: true },
-      '/avaliacoes': { target: 'http://localhost:8080', changeOrigin: true },
-      '/admin': { target: 'http://localhost:8080', changeOrigin: true },
-      '/prontuario': { target: 'http://localhost:8080', changeOrigin: true },
-    }
+    proxy: Object.fromEntries(
+      ['/auth', '/usuarios', '/anamnese', '/registros', '/clientes', '/consultas', '/plano', '/alimentos',
+       '/nutricionistas', '/avaliacoes', '/admin', '/prontuario'].map((p) => [p, backend])
+    ),
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })

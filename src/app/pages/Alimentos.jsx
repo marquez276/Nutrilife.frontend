@@ -5,15 +5,16 @@ import { Input } from "../components/ui/input";
 import { Search, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Badge } from "../components/ui/badge";
+import { apiFetch } from "../api";
 
 export default function Alimentos() {
   const [searchTerm, setSearchTerm] = useState("");
   const [foodDatabase, setFoodDatabase] = useState([]);
 
   useEffect(() => {
-    fetch("/admin/alimentos")
+    apiFetch("/admin/alimentos")
       .then(r => r.ok ? r.json() : [])
-      .then(data => setFoodDatabase(Array.isArray(data) ? data : []))
+      .then(data => setFoodDatabase(Array.isArray(data) ? data.filter(f => f.ativo !== false) : []))
       .catch(() => setFoodDatabase([]));
   }, []);
 

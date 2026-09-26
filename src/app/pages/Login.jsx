@@ -1,5 +1,5 @@
-import { Link, useNavigate, useSearchParams } from "react-router";
-import { useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -13,9 +13,15 @@ export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login } = useApp();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { state } = useLocation();
+  // Vem preenchido só logo após o cadastro (state some ao recarregar a página)
+  const [email, setEmail] = useState(state?.email || "");
+  const [password, setPassword] = useState(state?.senha || "");
   const [userType, setUserType] = useState(searchParams.get("type") || "patient");
+
+  useEffect(() => {
+    if (searchParams.get("expirada")) toast.error("Sua sessão expirou. Faça login novamente.");
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -96,17 +102,6 @@ export default function Login() {
                     className="rounded-xl border-gray-200"
                   />
                 </div>
-
-                {userType === "admin" && (
-                  <p className="text-xs text-gray-400 text-center">
-                    Credenciais: admin@nutrilife.com / 123456
-                  </p>
-                )}
-                {userType === "nutritionist" && (
-                  <p className="text-xs text-gray-400 text-center">
-                    Ex: maria@nutrilife.com / 123456
-                  </p>
-                )}
 
                 <Button
                   type="submit"

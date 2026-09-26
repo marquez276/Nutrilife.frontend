@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router";
-import { Home, UtensilsCrossed, Scale, TrendingUp, Database, Calendar, User, LogOut, ShieldCheck, Stethoscope } from "lucide-react";
+import { Home, UtensilsCrossed, Scale, TrendingUp, Database, Calendar, User, LogOut, ShieldCheck, Stethoscope, UserPlus } from "lucide-react";
 import { cn } from "./ui/utils";
 import { useApp } from "../context/AppContext";
 
@@ -33,6 +33,7 @@ export function Sidebar({ userType }) {
   const adminLinks = [
     { to: "/admin", icon: ShieldCheck, label: "Painel Admin" },
     { to: "/gerenciar-alimentos", icon: Database, label: "Gerenciar Alimentos" },
+    { to: "/cadastro-funcionario", icon: UserPlus, label: "Cadastro Funcionário/Admin" },
     { to: "/perfil-admin", icon: User, label: "Perfil Admin" },
   ];
 

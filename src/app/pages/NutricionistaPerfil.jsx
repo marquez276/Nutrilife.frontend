@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
+import { apiFetch } from "../api";
 
 export default function NutricionistaPerfil() {
   const { usuarioLogado, recarregarNutricionistas, atualizarUsuarioLogado } = useApp();
@@ -44,7 +45,7 @@ export default function NutricionistaPerfil() {
 
   useEffect(() => {
     if (!id) return;
-    fetch(`/usuarios/${id}/imagem`)
+    apiFetch(`/usuarios/${id}/imagem`)
       .then(r => {
         if (r.ok) { setPhotoUrl(`/usuarios/${id}/imagem?t=${Date.now()}`); setFotoValida(true); }
         else setFotoValida(false);
@@ -54,7 +55,7 @@ export default function NutricionistaPerfil() {
 
   useEffect(() => {
     if (!id) return;
-    fetch(`/nutricionistas/${id}/perfil`)
+    apiFetch(`/nutricionistas/${id}/perfil`)
       .then(r => r.ok ? r.json() : null)
       .then(p => {
         const base = {
@@ -117,12 +118,12 @@ export default function NutricionistaPerfil() {
     setSaving(true);
     try {
       const [userRes, perfilRes] = await Promise.all([
-        fetch(`/usuarios/${id}`, {
+        apiFetch(`/usuarios/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ nomeCompleto: form.nome, telefone: form.telefone, crn: usuarioLogado?.crn }),
         }),
-        fetch(`/nutricionistas/${id}/perfil`, {
+        apiFetch(`/nutricionistas/${id}/perfil`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -158,7 +159,7 @@ export default function NutricionistaPerfil() {
     const form = new FormData();
     form.append("file", file);
     try {
-      const res = await fetch(`/usuarios/${id}/imagem`, { method: "POST", body: form });
+      const res = await apiFetch(`/usuarios/${id}/imagem`, { method: "POST", body: form });
       if (!res.ok) throw new Error();
       setPhotoUrl(`/usuarios/${id}/imagem?t=${Date.now()}`);
       setFotoValida(true);
@@ -189,7 +190,7 @@ export default function NutricionistaPerfil() {
     const updatedPortfolio = [...form.portfolio, ...newImages];
     const updatedVideos    = [...form.videos,    ...newVideos];
     setForm(prev => ({ ...prev, portfolio: updatedPortfolio, videos: updatedVideos }));
-    await fetch(`/nutricionistas/${id}/perfil`, {
+    await apiFetch(`/nutricionistas/${id}/perfil`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ portfolio: updatedPortfolio.join("\n"), videos: updatedVideos.join("\n") }),
@@ -203,7 +204,7 @@ export default function NutricionistaPerfil() {
     const updated = form.portfolio.filter((_, i) => i !== idx);
     setForm(prev => ({ ...prev, portfolio: updated }));
     if (!id) return;
-    await fetch(`/nutricionistas/${id}/perfil`, {
+    await apiFetch(`/nutricionistas/${id}/perfil`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ portfolio: updated.join("\n"), videos: form.videos.join("\n") }),
@@ -214,7 +215,7 @@ export default function NutricionistaPerfil() {
     const updated = form.videos.filter((_, i) => i !== idx);
     setForm(prev => ({ ...prev, videos: updated }));
     if (!id) return;
-    await fetch(`/nutricionistas/${id}/perfil`, {
+    await apiFetch(`/nutricionistas/${id}/perfil`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ portfolio: form.portfolio.join("\n"), videos: updated.join("\n") }),

@@ -1,5 +1,9 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { toast } from "sonner";
+import { apiFetch, getToken, setToken, tokenValido, limparSessao } from "../api";
+
+// Revoga um JWT no backend (melhor esforço; fetch puro para um 401 aqui não redirecionar o usuário)
+const revogarToken = (token) => token && fetch("/auth/logout", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
 
 const AppContext = createContext(null);
 
@@ -14,7 +18,12 @@ function save(key, value) {
 }
 
 export function AppProvider({ children }) {
-  const [usuarioLogado, setUsuarioLogado] = useState(() => load("nutrilife_sessao", null));
+  // A sessão só vale se houver JWT não expirado; sem ele, o usuário salvo é descartado
+  const [usuarioLogado, setUsuarioLogado] = useState(() => {
+    if (tokenValido()) return load("nutrilife_sessao", null);
+    limparSessao();
+    return null;
+  });
 
   function atualizarUsuarioLogado(campos) {
     setUsuarioLogado(prev => {
@@ -36,7 +45,7 @@ export function AppProvider({ children }) {
   }
 
   function carregarNutricionistas() {
-    fetch("/nutricionistas/perfis")
+    apiFetch("/nutricionistas/perfis")
       .then(r => r.json())
       .then(perfis => {
         if (!Array.isArray(perfis)) return;
@@ -61,7 +70,7 @@ export function AppProvider({ children }) {
         }));
         setNutricionistasState(lista);
         lista.forEach(n => {
-          fetch(`/avaliacoes/nutricionista/${n.id}`)
+          apiFetch(`/avaliacoes/nutricionista/${n.id}`)
             .then(r => r.json())
             .then(avs => {
               if (!Array.isArray(avs)) return;
@@ -91,7 +100,7 @@ export function AppProvider({ children }) {
 
   async function carregarDadosPaciente(id) {
     // Anamnese
-    const aRes = await fetch(`/anamnese/cliente/${id}`).catch(() => null);
+    const aRes = await apiFetch(`/anamnese/cliente/${id}`).catch(() => null);
     if (aRes && aRes.ok) {
       const d = await aRes.json();
       setAnamneseState(d);
@@ -100,12 +109,12 @@ export function AppProvider({ children }) {
       setAnamneseState(load(`anamnese_${id}`, null));
     }
     // Refeições do dia
-    fetch(`/registros/refeicoes/${id}`)
+    apiFetch(`/registros/refeicoes/${id}`)
       .then(r => r.ok ? r.json() : [])
       .then(d => { setRefeicoesState(Array.isArray(d) ? d : []); save(`refeicoes_data_${id}`, hoje()); })
       .catch(() => setRefeicoesState([]));
     // Pesagens + progresso
-    fetch(`/clientes/${id}/progresso`)
+    apiFetch(`/clientes/${id}/progresso`)
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d) return;
@@ -113,22 +122,22 @@ export function AppProvider({ children }) {
         setMetasState(prev => ({ ...prev, pesoInicial: d.pesoInicial, pesoIdeal: d.pesoIdeal, imc: d.imc, statusPeso: d.statusPeso }));
       })
       .catch(() => {
-        fetch(`/registros/pesagens/${id}`)
+        apiFetch(`/registros/pesagens/${id}`)
           .then(r => r.json()).then(d => setPesagensState(Array.isArray(d) ? d : []))
           .catch(() => setPesagensState([]));
       });
     // Metas
-    fetch(`/anamnese/cliente/${id}/metas`)
+    apiFetch(`/anamnese/cliente/${id}/metas`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setMetasState(d); })
       .catch(() => {
-        fetch(`/clientes/${id}/metas`)
+        apiFetch(`/clientes/${id}/metas`)
           .then(r => r.ok ? r.json() : null)
           .then(d => { if (d) setMetasState(d); })
           .catch(() => {});
       });
     // Agenda
-    fetch(`/consultas/cliente/${id}`)
+    apiFetch(`/consultas/cliente/${id}`)
       .then(r => r.json()).then(d => setAgendamentosState(Array.isArray(d) ? d : []))
       .catch(() => setAgendamentosState([]));
   }
@@ -142,7 +151,7 @@ export function AppProvider({ children }) {
     }
 
     if (usuarioLogado.tipo === "nutritionist") {
-      fetch(`/consultas/nutricionista/${usuarioLogado.id}`)
+      apiFetch(`/consultas/nutricionista/${usuarioLogado.id}`)
         .then(r => r.json()).then(d => setAgendamentosState(Array.isArray(d) ? d : []))
         .catch(() => setAgendamentosState([]));
       setPacientesState(load(`pacientes_${usuarioLogado.id}`, []));
@@ -157,7 +166,7 @@ export function AppProvider({ children }) {
     const ultimaData = load(`refeicoes_data_${usuarioLogado.id}`, null);
     if (ultimaData && ultimaData !== hoje()) {
       // Novo dia: recarrega refeições do backend (retorna lista vazia para hoje)
-      fetch(`/registros/refeicoes/${usuarioLogado.id}`)
+      apiFetch(`/registros/refeicoes/${usuarioLogado.id}`)
         .then(r => r.ok ? r.json() : [])
         .then(d => { setRefeicoesState(Array.isArray(d) ? d : []); save(`refeicoes_data_${usuarioLogado.id}`, hoje()); })
         .catch(() => {});
@@ -168,7 +177,7 @@ export function AppProvider({ children }) {
     meianoite.setHours(24, 0, 0, 0);
     const ms = meianoite - agora;
     const timer = setTimeout(() => {
-      fetch(`/registros/refeicoes/${usuarioLogado.id}`)
+      apiFetch(`/registros/refeicoes/${usuarioLogado.id}`)
         .then(r => r.ok ? r.json() : [])
         .then(d => { setRefeicoesState(Array.isArray(d) ? d : []); save(`refeicoes_data_${usuarioLogado.id}`, hoje()); })
         .catch(() => {});
@@ -179,7 +188,7 @@ export function AppProvider({ children }) {
   // ── Auth ──────────────────────────────────────────────────────────
   async function login(email, senha, tipo) {
     try {
-      const res = await fetch("/auth/login", {
+      const res = await apiFetch("/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, senha }),
@@ -188,57 +197,64 @@ export function AppProvider({ children }) {
         const err = await res.json().catch(() => ({}));
         return { ok: false, erro: err.message || "E-mail ou senha incorretos." };
       }
-      const { usuario } = await res.json();
+      const { usuario, access_token } = await res.json();
 
       let tipoMapeado;
       if (usuario.tipoUsuario === "ADMIN") tipoMapeado = "admin";
       else if (usuario.tipoUsuario === "NUTRICIONISTA") tipoMapeado = "nutritionist";
       else tipoMapeado = "patient";
 
+      if (tipo && tipo !== tipoMapeado) {
+        revogarToken(access_token);
+        return { ok: false, erro: "Este e-mail pertence a outro tipo de conta. Selecione a aba correta." };
+      }
+
+      setToken(access_token);
       const sessao = { ...usuario, nome: usuario.nomeCompleto, tipo: tipoMapeado };
       setUsuarioLogado(sessao);
       save("nutrilife_sessao", sessao);
 
       if (tipoMapeado === "patient") {
-        const aRes = await fetch(`/anamnese/cliente/${sessao.id}`).catch(() => null);
+        const aRes = await apiFetch(`/anamnese/cliente/${sessao.id}`).catch(() => null);
         if (aRes && aRes.ok) {
           const aData = await aRes.json();
           setAnamneseState(aData);
           save(`anamnese_${sessao.id}`, aData);
-          fetch(`/anamnese/cliente/${sessao.id}/metas`)
+          apiFetch(`/anamnese/cliente/${sessao.id}/metas`)
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (d) setMetasState(d); })
             .catch(() => {});
           // Carrega demais dados do paciente
-          fetch(`/registros/refeicoes/${sessao.id}`)
+          apiFetch(`/registros/refeicoes/${sessao.id}`)
             .then(r => r.ok ? r.json() : [])
             .then(d => { setRefeicoesState(Array.isArray(d) ? d : []); save(`refeicoes_data_${sessao.id}`, hoje()); })
             .catch(() => {});
-          fetch(`/clientes/${sessao.id}/progresso`)
+          apiFetch(`/clientes/${sessao.id}/progresso`)
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (d) setPesagensState(Array.isArray(d.historico) ? d.historico : []); })
             .catch(() => {});
-          fetch(`/consultas/cliente/${sessao.id}`)
+          apiFetch(`/consultas/cliente/${sessao.id}`)
             .then(r => r.json()).then(d => setAgendamentosState(Array.isArray(d) ? d : []))
             .catch(() => {});
-          return { ok: true, hasAnamnese: true };
+          return { ok: true, tipo: tipoMapeado, hasAnamnese: true };
         } else {
           setAnamneseState(null);
-          return { ok: true, hasAnamnese: false };
+          return { ok: true, tipo: tipoMapeado, hasAnamnese: false };
         }
       }
       if (tipoMapeado === "nutritionist") {
-        return { ok: true, codStatus: sessao.codStatus };
+        return { ok: true, tipo: tipoMapeado, codStatus: sessao.codStatus };
       }
-      return { ok: true };
+      return { ok: true, tipo: tipoMapeado };
     } catch {
       return { ok: false, erro: "Erro ao conectar com o servidor." };
     }
   }
 
   function logout() {
+    revogarToken(getToken());
     setUsuarioLogado(null);
-    localStorage.removeItem("nutrilife_sessao");
+    limparSessao();
     setAnamneseState(null);
     setRefeicoesState([]);
     setPesagensState([]);
@@ -251,7 +267,7 @@ export function AppProvider({ children }) {
   // ── Cadastro ──────────────────────────────────────────────────────
   async function cadastrarPaciente(dados) {
     try {
-      const res = await fetch("/usuarios/paciente", {
+      const res = await apiFetch("/usuarios/paciente", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nomeCompleto: dados.nome, email: dados.email, senha: dados.senha, telefone: dados.telefone || null, cpf: dados.cpf || null, dataNascimento: dados.dataNascimento || null }),
@@ -263,7 +279,7 @@ export function AppProvider({ children }) {
 
   async function cadastrarNutricionista(dados) {
     try {
-      const res = await fetch("/usuarios/nutricionista", {
+      const res = await apiFetch("/usuarios/nutricionista", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nomeCompleto: dados.nome, email: dados.email, senha: dados.senha, telefone: dados.telefone, crn: dados.crn, especialidade: dados.especialidade }),
@@ -278,7 +294,7 @@ export function AppProvider({ children }) {
     const id = usuarioLogado?.id;
     if (!id) { setAnamneseState(dados); return; }
     try {
-      const res = await fetch("/anamnese", {
+      const res = await apiFetch("/anamnese", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -299,33 +315,38 @@ export function AppProvider({ children }) {
       setAnamneseState(salvo);
       save(`anamnese_${id}`, salvo);
       // Recalculate and persist goals after anamnese update
-      fetch(`/anamnese/cliente/${id}/metas`)
+      apiFetch(`/anamnese/cliente/${id}/metas`)
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d) setMetasState(d); })
         .catch(() => {});
-    } catch { setAnamneseState(dados); save(`anamnese_${id}`, dados); }
+    } catch { toast.error("Erro ao conectar com o servidor."); }
   }
 
   // ── Refeições ─────────────────────────────────────────────────────
   async function adicionarRefeicao(refeicao) {
     if (!usuarioLogado) return;
     try {
-      const res = await fetch("/registros/refeicoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...refeicao, cliente: { id: usuarioLogado.id } }) });
+      const res = await apiFetch("/registros/refeicoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...refeicao, cliente: { id: usuarioLogado.id } }) });
+      if (!res.ok) throw new Error(res.status);
       const salva = await res.json();
       setRefeicoesState(prev => [...prev, salva]);
-    } catch { setRefeicoesState(prev => [...prev, { ...refeicao, id: Date.now() }]); }
+    } catch { toast.error("Não foi possível salvar. Tente novamente."); }
   }
   async function editarRefeicao(id, dados) {
     if (!usuarioLogado) return;
     try {
-      const res = await fetch(`/registros/refeicoes/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
+      const res = await apiFetch(`/registros/refeicoes/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
+      if (!res.ok) throw new Error(res.status);
       const atualizada = await res.json();
       setRefeicoesState(prev => prev.map(r => r.id === id ? atualizada : r));
-    } catch { setRefeicoesState(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r)); }
+    } catch { toast.error("Não foi possível salvar. Tente novamente."); }
   }
   async function removerRefeicao(id) {
     if (!usuarioLogado) return;
-    try { await fetch(`/registros/refeicoes/${id}`, { method: "DELETE" }); } catch {}
+    try {
+      const res = await apiFetch(`/registros/refeicoes/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(res.status);
+    } catch { toast.error("Não foi possível remover. Tente novamente."); return; }
     setRefeicoesState(prev => prev.filter(r => r.id !== id));
   }
 
@@ -333,21 +354,25 @@ export function AppProvider({ children }) {
   async function adicionarPesagem(pesagem) {
     if (!usuarioLogado) return;
     try {
-      const res = await fetch("/registros/pesagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...pesagem, cliente: { id: usuarioLogado.id } }) });
+      const res = await apiFetch("/registros/pesagens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...pesagem, cliente: { id: usuarioLogado.id } }) });
+      if (!res.ok) throw new Error(res.status);
       const salva = await res.json();
       setPesagensState(prev => [...prev, salva]);
-      fetch(`/anamnese/cliente/${usuarioLogado.id}/metas`)
+      apiFetch(`/anamnese/cliente/${usuarioLogado.id}/metas`)
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d) setMetasState(d); })
         .catch(() => {});
-    } catch { setPesagensState(prev => [...prev, { ...pesagem, id: Date.now() }]); }
+    } catch { toast.error("Não foi possível salvar. Tente novamente."); }
   }
 
   async function removerPesagem(id) {
     if (!usuarioLogado) return;
-    try { await fetch(`/registros/pesagens/${id}`, { method: "DELETE" }); } catch {}
+    try {
+      const res = await apiFetch(`/registros/pesagens/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(res.status);
+    } catch { toast.error("Não foi possível remover. Tente novamente."); return; }
     setPesagensState(prev => prev.filter(p => p.id !== id));
-    fetch(`/anamnese/cliente/${usuarioLogado.id}/metas`)
+    apiFetch(`/anamnese/cliente/${usuarioLogado.id}/metas`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setMetasState(d); })
       .catch(() => {});
@@ -367,10 +392,11 @@ export function AppProvider({ children }) {
       nutricionistaId: usuarioLogado.tipo === "nutritionist" ? usuarioLogado.id : null,
     };
     try {
-      const res = await fetch("/consultas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await apiFetch("/consultas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(res.status);
       const salvo = await res.json();
       setAgendamentosState(prev => [...prev, salvo]);
-    } catch { setAgendamentosState(prev => [...prev, { ...ag, id: Date.now().toString() }]); }
+    } catch { toast.error("Não foi possível salvar. Tente novamente."); }
   }
   async function editarAgendamento(id, dados) {
     if (!usuarioLogado) return;
@@ -385,13 +411,17 @@ export function AppProvider({ children }) {
       nutricionistaId: usuarioLogado.tipo === "nutritionist" ? usuarioLogado.id : null,
     };
     try {
-      const res = await fetch(`/consultas/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await apiFetch(`/consultas/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(res.status);
       const atualizada = await res.json();
       setAgendamentosState(prev => prev.map(a => a.id === id ? atualizada : a));
-    } catch { setAgendamentosState(prev => prev.map(a => a.id === id ? { ...a, ...dados } : a)); }
+    } catch { toast.error("Não foi possível salvar. Tente novamente."); }
   }
   async function removerAgendamento(id) {
-    try { await fetch(`/consultas/${id}`, { method: "DELETE" }); } catch {}
+    try {
+      const res = await apiFetch(`/consultas/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(res.status);
+    } catch { toast.error("Não foi possível remover. Tente novamente."); return; }
     setAgendamentosState(prev => prev.filter(a => a.id !== id));
   }
 
@@ -406,7 +436,7 @@ export function AppProvider({ children }) {
   async function adicionarAvaliacao(nutricionistaId, avaliacao) {
     if (!usuarioLogado) return;
     try {
-      const res = await fetch("/avaliacoes", {
+      const res = await apiFetch("/avaliacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

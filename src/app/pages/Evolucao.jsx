@@ -4,7 +4,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { TrendingDown, Calendar, Plus, Trash2 } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../context/AppContext";
@@ -161,7 +161,7 @@ export default function Evolucao() {
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={350}>
-                <AreaChart data={chartData}>
+                <ComposedChart data={chartData}>
                   <defs>
                     <linearGradient id="colorPeso" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
@@ -174,7 +174,7 @@ export default function Evolucao() {
                   <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} />
                   <Area type="monotone" dataKey="peso" stroke="#16a34a" strokeWidth={3} fill="url(#colorPeso)" />
                   {goalWeight && <Line type="monotone" dataKey="meta" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={false} />}
-                </AreaChart>
+                </ComposedChart>
               </ResponsiveContainer>
             )}
           </CardContent>

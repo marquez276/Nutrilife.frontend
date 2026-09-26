@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
 import { useApp } from "../context/AppContext";
+import { apiFetch } from "../api";
 
 export default function Nutricionista() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export default function Nutricionista() {
     setClinicalNotesId(null);
     if (usuarioLogado?.id && patient?.name) {
       try {
-        const res = await fetch(`/prontuario/${usuarioLogado.id}/${encodeURIComponent(patient.name)}`);
+        const res = await apiFetch(`/prontuario/${usuarioLogado.id}/${encodeURIComponent(patient.name)}`);
         if (res.ok) {
           const data = await res.json();
           setClinicalNotes(data.observations || "");
@@ -53,7 +54,7 @@ export default function Nutricionista() {
     if (!usuarioLogado?.id || !selectedPatient?.name) return;
     setSavingNotes(true);
     try {
-      const res = await fetch("/prontuario", {
+      const res = await apiFetch("/prontuario", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -79,7 +80,7 @@ export default function Nutricionista() {
     setProgressNote("");
     if (usuarioLogado?.id && patient?.name) {
       try {
-        const res = await fetch(`/prontuario/${usuarioLogado.id}/${encodeURIComponent(patient.name)}`);
+        const res = await apiFetch(`/prontuario/${usuarioLogado.id}/${encodeURIComponent(patient.name)}`);
         if (res.ok) {
           const data = await res.json();
           setProgressNote(data.observations || "");
@@ -93,7 +94,7 @@ export default function Nutricionista() {
     if (!usuarioLogado?.id || !evolutionPatient?.name) return;
     setSavingProgress(true);
     try {
-      const res = await fetch("/prontuario", {
+      const res = await apiFetch("/prontuario", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

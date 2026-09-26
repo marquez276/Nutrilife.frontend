@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
+import { Switch } from "../components/ui/switch";
+import { apiFetch, apiJson } from "../api";
 
 const EMPTY = { nome: "", calorias: "", proteina: "", carboidrato: "", gordura: "" };
 
@@ -19,7 +21,7 @@ export default function GerenciarAlimentos() {
   const [form, setForm] = useState(EMPTY);
 
   useEffect(() => {
-    fetch("/admin/alimentos")
+    apiFetch("/admin/alimentos")
       .then(r => r.json())
       .then(data => setFoods(Array.isArray(data) ? data : []))
       .catch(() => toast.error("Erro ao carregar alimentos."));
@@ -35,24 +37,38 @@ export default function GerenciarAlimentos() {
       proteina: parseFloat(form.proteina) || 0,
       carboidrato: parseFloat(form.carboidrato) || 0,
       gordura: parseFloat(form.gordura) || 0,
+      ativo: editing ? editing.ativo : true,
     };
     const url = editing ? `/admin/alimentos/${editing.id}` : "/admin/alimentos";
     const method = editing ? "PUT" : "POST";
-    fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      .then(r => r.ok ? r.json() : Promise.reject())
+    apiJson(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(saved => {
         setFoods(prev => editing ? prev.map(f => f.id === saved.id ? saved : f) : [...prev, saved]);
         toast.success(editing ? "Alimento atualizado!" : "Alimento adicionado!");
         setDialogOpen(false);
       })
-      .catch(() => toast.error("Erro ao salvar alimento."));
+      .catch(e => toast.error(e.message));
   };
 
-  const handleDelete = (id) => {
-    fetch(`/admin/alimentos/${id}`, { method: "DELETE" })
-      .then(r => r.ok ? null : Promise.reject())
-      .then(() => { setFoods(prev => prev.filter(f => f.id !== id)); toast.error("Alimento removido."); })
-      .catch(() => toast.error("Erro ao remover alimento."));
+  const toggleAtivo = (f) => {
+    const { id, nome, calorias, proteina, carboidrato, gordura } = f;
+    apiJson(`/admin/alimentos/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome, calorias, proteina, carboidrato, gordura, ativo: !f.ativo }),
+    })
+      .then(saved => {
+        setFoods(prev => prev.map(x => (x.id === saved.id ? saved : x)));
+        toast.success(saved.ativo ? "Alimento ativado." : "Alimento desativado: não entra mais nos planos.");
+      })
+      .catch(e => toast.error(e.message));
+  };
+
+  const handleDelete = (f) => {
+    if (!window.confirm(`Remover "${f.nome}" do banco de alimentos?`)) return;
+    apiJson(`/admin/alimentos/${f.id}`, { method: "DELETE" })
+      .then(() => { setFoods(prev => prev.filter(x => x.id !== f.id)); toast.success("Alimento removido."); })
+      .catch(e => toast.error(e.message));
   };
 
   const filtered = foods.filter(f => f.nome?.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -87,6 +103,7 @@ export default function GerenciarAlimentos() {
                     <TableHead>Alimento</TableHead>
                     <TableHead>Calorias</TableHead>
                     <TableHead>Prot / Carb / Gord</TableHead>
+                    <TableHead>Ativo nos planos</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -96,11 +113,12 @@ export default function GerenciarAlimentos() {
                       <TableCell className="font-bold text-gray-900">{f.nome}</TableCell>
                       <TableCell className="font-bold">{f.calorias} kcal</TableCell>
                       <TableCell className="text-gray-500">{f.proteina}g / {f.carboidrato}g / {f.gordura}g</TableCell>
+                      <TableCell><Switch checked={f.ativo !== false} onCheckedChange={() => toggleAtivo(f)} /></TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => openEdit(f)}>
                           <Edit2 className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => handleDelete(f.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => handleDelete(f)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </TableCell>

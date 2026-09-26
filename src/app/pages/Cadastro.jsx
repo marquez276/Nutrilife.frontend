@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { toast } from "sonner";
 import { useApp } from "../context/AppContext";
+import { apiFetch } from "../api";
 
 // ── Funções de máscara ──────────────────────────────────────────────
 function maskCpf(v) {
@@ -61,7 +62,7 @@ export default function Cadastro() {
   const verificarCrn = async (crn) => {
     if (!crn || crn.length < 4) { setCrnStatus(null); return; }
     try {
-      const r = await fetch(`/admin/verificar-crn?crn=${encodeURIComponent(crn)}`);
+      const r = await apiFetch(`/admin/verificar-crn?crn=${encodeURIComponent(crn)}`);
       const data = await r.json();
       setCrnStatus(data.disponivel ? "ok" : "erro");
     } catch { setCrnStatus(null); }
@@ -123,7 +124,7 @@ export default function Cadastro() {
     });
     if (!resultado.ok) { toast.error(resultado.erro); return; }
     toast.success("Conta profissional criada!");
-    navigate("/login");
+    navigate("/login?type=nutritionist", { state: { email: nutri.email, senha: nutri.senha } });
   };
 
   return (

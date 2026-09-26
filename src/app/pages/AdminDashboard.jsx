@@ -10,6 +10,7 @@ import { Badge } from "../components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { toast } from "sonner";
+import { apiJson } from "../api";
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -23,44 +24,58 @@ export default function AdminDashboard() {
   const [diasInatividade, setDiasInatividade] = useState(30);
   const [savingConfig, setSavingConfig] = useState(false);
 
-  const loadStats = useCallback(() => {
-    fetch("/admin/stats").then(r => r.json()).then(setStats).catch(() => {});
-  }, []);
+  const lista = (d) => (Array.isArray(d) ? d : []);
 
-  const loadCrescimento = useCallback(() => {
-    fetch("/admin/crescimento").then(r => r.json()).then(data => setBarData(Array.isArray(data) ? data : [])).catch(() => {});
+  // Tudo que depende de "dias de inatividade" (flag inativo, stats) é recarregado junto
+  const carregar = useCallback(() => {
+    apiJson("/admin/stats").then(setStats).catch(() => {});
+    apiJson("/admin/crescimento").then(d => setBarData(lista(d))).catch(() => {});
+    apiJson("/admin/usuarios").then(d => setUsuarios(lista(d))).catch(() => {});
+    apiJson("/admin/nutricionistas").then(d => setNutricionistas(lista(d))).catch(() => {});
   }, []);
 
   useEffect(() => {
-    loadStats();
-    loadCrescimento();
-    fetch("/admin/usuarios").then(r => r.json()).then(data => setUsuarios(Array.isArray(data) ? data : [])).catch(() => {});
-    fetch("/admin/nutricionistas").then(r => r.json()).then(data => setNutricionistas(Array.isArray(data) ? data : [])).catch(() => {});
-    fetch("/admin/configuracoes").then(r => r.json()).then(d => setDiasInatividade(d.diasInatividade ?? 30)).catch(() => {});
-  }, [loadStats, loadCrescimento]);
+    carregar();
+    apiJson("/admin/configuracoes").then(d => setDiasInatividade(d.diasInatividade ?? 30)).catch(() => {});
+  }, [carregar]);
 
   const salvarConfiguracoes = () => {
     setSavingConfig(true);
-    fetch("/admin/configuracoes", {
+    apiJson("/admin/configuracoes", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ diasInatividade }),
     })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(() => toast.success("Configurações salvas!"))
-      .catch(() => toast.error("Erro ao salvar configurações."))
+      .then(() => { toast.success("Configurações salvas!"); carregar(); })
+      .catch(e => toast.error(e.message))
       .finally(() => setSavingConfig(false));
   };
+
+  const alternarStatus = (u, setLista) => {
+    apiJson(`/admin/usuarios/${u.id}/status`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ativo: !u.ativo }),
+    })
+      .then(() => {
+        setLista(prev => prev.map(x => (x.id === u.id ? { ...x, ativo: !u.ativo } : x)));
+        toast.success(u.ativo ? "Conta desativada." : "Conta ativada.");
+        apiJson("/admin/stats").then(setStats).catch(() => {});
+      })
+      .catch(e => toast.error(e.message));
+  };
+
+  const fmtData = (iso) => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "Nunca");
 
   const totalUsuarios = stats?.totalPacientes ?? usuarios.length;
   const totalNutricionistas = stats?.totalNutricionistas ?? nutricionistas.length;
   const mediaAvaliacoes = stats?.mediaAvaliacoes != null ? stats.mediaAvaliacoes.toFixed(1) : "—";
 
-  const comNutri = nutricionistas.filter(n => n.ativo).length;
+  const comNutri = stats?.nutricionistasAtivos ?? nutricionistas.filter(n => n.ativo).length;
   const semNutri = totalNutricionistas - comNutri;
   const pieData = [
     { name: "Ativos", value: comNutri, color: "#9333ea" },
-    { name: "Inativos", value: semNutri, color: "#d8b4fe" },
+    { name: "Pendentes/Inativos", value: semNutri, color: "#d8b4fe" },
   ];
 
   const filteredUsers = usuarios.filter(u => {
@@ -200,6 +215,8 @@ export default function AdminDashboard() {
                         <TableHead>Email</TableHead>
                         <TableHead>IMC</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Último acesso</TableHead>
+                        <TableHead className="text-right">Conta</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -217,6 +234,15 @@ export default function AdminDashboard() {
                             }>
                               {user.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-gray-500 text-sm">
+                            {fmtData(user.ultimoAcesso)}
+                            {user.inativo && <Badge className="ml-2 bg-red-100 text-red-700 border-none">Inativo</Badge>}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button size="sm" variant="outline" onClick={() => alternarStatus(user, setUsuarios)}>
+                              {user.ativo ? "Desativar" : "Ativar"}
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -252,6 +278,21 @@ export default function AdminDashboard() {
                   <p className="text-3xl font-bold text-gray-900">{stats?.totalLogs ?? "—"}</p>
                   <p className="text-xs text-gray-500 mt-1">Registros de atividade</p>
                 </div>
+                <div className="p-6 bg-amber-50 rounded-xl">
+                  <p className="text-sm text-gray-600 mb-1">Usuários Inativos</p>
+                  <p className="text-3xl font-bold text-gray-900">{stats?.usuariosInativos ?? "—"}</p>
+                  <p className="text-xs text-gray-500 mt-1">Sem acesso há mais de {stats?.diasInatividade ?? diasInatividade} dias</p>
+                </div>
+                <div className="p-6 bg-teal-50 rounded-xl">
+                  <p className="text-sm text-gray-600 mb-1">Consultas Agendadas</p>
+                  <p className="text-3xl font-bold text-gray-900">{stats?.totalConsultas ?? "—"}</p>
+                  <p className="text-xs text-gray-500 mt-1">Total na plataforma</p>
+                </div>
+                <div className="p-6 bg-indigo-50 rounded-xl">
+                  <p className="text-sm text-gray-600 mb-1">Alimentos no Catálogo</p>
+                  <p className="text-3xl font-bold text-gray-900">{stats?.totalAlimentos ?? "—"}</p>
+                  <p className="text-xs text-gray-500 mt-1">{stats?.totalAdmins ?? 0} administradores</p>
+                </div>
               </CardContent>
             </Card>
 
@@ -266,6 +307,7 @@ export default function AdminDashboard() {
                         <TableHead>CRN</TableHead>
                         <TableHead>Média</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ação</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -276,8 +318,13 @@ export default function AdminDashboard() {
                           <TableCell>{n.mediaAvaliacoes ?? "—"}</TableCell>
                           <TableCell>
                             <Badge className={n.ativo ? "bg-green-100 text-green-700 border-none" : "bg-gray-100 text-gray-700 border-none"}>
-                              {n.ativo ? "Ativo" : "Inativo"}
+                              {n.ativo ? "Ativo" : "Pendente"}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button size="sm" variant="outline" onClick={() => alternarStatus(n, setNutricionistas)}>
+                              {n.ativo ? "Desativar" : "Aprovar"}
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -302,7 +349,7 @@ export default function AdminDashboard() {
                     value={diasInatividade}
                     onChange={e => setDiasInatividade(Number(e.target.value))}
                   />
-                  <p className="text-xs text-gray-400">Usuários sem acesso há mais de {diasInatividade} dias serão sinalizados.</p>
+                  <p className="text-xs text-gray-400">Usuários sem acesso há mais de {diasInatividade} dias aparecem como "Inativo" no painel e nos relatórios{stats ? ` (agora: ${stats.usuariosInativos})` : ""}.</p>
                 </div>
                 <div className="pt-4 border-t">
                   <Button className="bg-green-600 hover:bg-green-700" onClick={salvarConfiguracoes} disabled={savingConfig}>
