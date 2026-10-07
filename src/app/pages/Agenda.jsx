@@ -31,7 +31,7 @@ function normDate(a) {
 }
 
 export default function Agenda({ userType = "patient" }) {
-  const { agendamentos, adicionarAgendamento, editarAgendamento, removerAgendamento, nutricionistas, pacientes } = useApp();
+  const { agendamentos, adicionarAgendamento, editarAgendamento, removerAgendamento, nutricionistas, vinculos } = useApp();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -88,7 +88,7 @@ export default function Agenda({ userType = "patient" }) {
   const selectedAppointments = agendamentos.filter(a => normDate(a) === selectedDateStr);
 
   const nomesNutricionistas = nutricionistas.map(n => n.nome).filter(Boolean);
-  const nomesPacientes = pacientes.map(p => p.name).filter(Boolean);
+  const nomesPacientes = vinculos.filter(v => v.status === "ATIVO").map(v => v.clienteNome).filter(Boolean);
 
   return (
     <Layout userType={userType}>

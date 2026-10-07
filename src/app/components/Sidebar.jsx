@@ -1,21 +1,24 @@
 import { Link, useLocation, useNavigate } from "react-router";
-import { Home, UtensilsCrossed, Scale, TrendingUp, Database, Calendar, User, LogOut, ShieldCheck, Stethoscope, UserPlus } from "lucide-react";
+import { Home, UtensilsCrossed, Scale, TrendingUp, Database, Calendar, User, LogOut, ShieldCheck, Stethoscope, UserPlus, ClipboardList, Users } from "lucide-react";
 import { cn } from "./ui/utils";
 import { useApp } from "../context/AppContext";
 
 export function Sidebar({ userType }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useApp();
+  const { logout, vinculos } = useApp();
 
   const handleLogout = () => {
     logout();
     navigate("/");
   };
 
+  const temNutricionistaVinculado = vinculos?.some(v => v.status === "ATIVO");
+
   const patientLinks = [
     { to: "/dashboard", icon: Home, label: "Minha Jornada" },
     { to: "/plano-alimentar", icon: UtensilsCrossed, label: "Plano Alimentar" },
+    ...(temNutricionistaVinculado ? [{ to: "/plano-personalizado", icon: ClipboardList, label: "Plano Personalizado" }] : []),
     { to: "/calorias", icon: Scale, label: "Controle de Calorias" },
     { to: "/evolucao", icon: TrendingUp, label: "Evolução de Peso" },
     { to: "/alimentos", icon: Database, label: "Banco de Alimentos" },
@@ -25,7 +28,7 @@ export function Sidebar({ userType }) {
   ];
 
   const nutritionistLinks = [
-    { to: "/nutricionista-portal", icon: Home, label: "Painel Profissional" },
+    { to: "/nutricionista-portal", icon: Users, label: "Pacientes" },
     { to: "/agenda-nutricionista", icon: Calendar, label: "Agenda de Pacientes" },
     { to: "/perfil-nutricionista", icon: User, label: "Perfil Profissional" },
   ];

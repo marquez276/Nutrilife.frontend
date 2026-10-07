@@ -22,6 +22,7 @@ import CadastroFuncionario from "./pages/CadastroFuncionario";
 import FichaAnamnese from "./pages/FichaAnamnese";
 import Consultas from "./pages/Consultas";
 import Loja from "./pages/Loja";
+import PlanoPersonalizado from "./pages/PlanoPersonalizado";
 
 const HOME = { patient: "/dashboard", nutritionist: "/nutricionista-portal", admin: "/admin" };
 
@@ -52,11 +53,13 @@ export const router = createBrowserRouter([
   protegida("/perfil", <Perfil />, "patient"),
   protegida("/consultas", <Consultas />, "patient"),
   protegida("/loja", <Loja />, "patient"),
+  protegida("/plano-personalizado", <PlanoPersonalizado />, "patient"),
 
   // nutricionista
   protegida("/nutricionista-portal", <Nutricionista />, "nutritionist"),
   protegida("/agenda-nutricionista", <AgendaNutricionista userType="nutritionist" />, "nutritionist"),
   protegida("/perfil-nutricionista", <NutricionistaPerfil />, "nutritionist"),
+  protegida("/plano-personalizado/:clienteId", <PlanoPersonalizado />, "nutritionist"),
 
   // administrador
   protegida("/admin", <AdminDashboard />, "admin"),

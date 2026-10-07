@@ -2,8 +2,8 @@ import { Layout } from "../components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Users, Plus, Search, TrendingUp, ClipboardList, Calendar } from "lucide-react";
-import { useState } from "react";
+import { Users, Plus, Search, TrendingUp, ClipboardList, Calendar, Copy, Check, UserPlus } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Badge } from "../components/ui/badge";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
@@ -12,119 +12,114 @@ import { Label } from "../components/ui/label";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
 import { useApp } from "../context/AppContext";
 import { apiFetch } from "../api";
 
 export default function Nutricionista() {
   const navigate = useNavigate();
-  const { pacientes, adicionarPaciente, usuarioLogado } = useApp();
+  const { vinculos, aceitarVinculo, recusarVinculo, gerarConvite, pacientesExternos, cadastrarPacienteExterno, usuarioLogado } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [clinicalNotes, setClinicalNotes] = useState("");
-  const [clinicalNotesId, setClinicalNotesId] = useState(null);
+  const [observacoes, setObservacoes] = useState([]);
+  const [novaObservacao, setNovaObservacao] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [isNewPatientDialogOpen, setIsNewPatientDialogOpen] = useState(false);
   const [isEvolutionDialogOpen, setIsEvolutionDialogOpen] = useState(false);
   const [evolutionPatient, setEvolutionPatient] = useState(null);
-  const [progressNote, setProgressNote] = useState("");
-  const [savingProgress, setSavingProgress] = useState(false);
-  const FORM_VAZIO = { name: "", age: "", sex: "", weight: "", height: "", goal: "", healthIssues: "", restrictions: "", activity: "", sleep: "" };
-  const [newPatientForm, setNewPatientForm] = useState(FORM_VAZIO);
-  const setField = (field, value) => setNewPatientForm(p => ({ ...p, [field]: value }));
+  const [evolutionData, setEvolutionData] = useState(null);
+  const [convite, setConvite] = useState(null);
+  const [conviteCopiado, setConviteCopiado] = useState(false);
+  const FORM_EXTERNO_VAZIO = { nome: "", objetivo: "", observacoes: "" };
+  const [externoForm, setExternoForm] = useState(FORM_EXTERNO_VAZIO);
 
-  const handleOpenPatient = async (patient) => {
-    setSelectedPatient(patient);
-    setClinicalNotes("");
-    setClinicalNotesId(null);
-    if (usuarioLogado?.id && patient?.name) {
+  const pacientesAtivos = vinculos.filter(v => v.status === "ATIVO");
+  const solicitacoesPendentes = vinculos.filter(v => v.status === "PENDENTE" && v.origem === "PACIENTE");
+  const convitesAbertos = vinculos.filter(v => v.status === "PENDENTE" && v.origem === "NUTRICIONISTA");
+
+  const [planosPorCliente, setPlanosPorCliente] = useState({});
+
+  useEffect(() => {
+    pacientesAtivos.forEach(v => {
+      if (!v.clienteId || planosPorCliente[v.clienteId] !== undefined) return;
+      apiFetch(`/plano/personalizado/${v.clienteId}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(plano => setPlanosPorCliente(prev => ({ ...prev, [v.clienteId]: plano })))
+        .catch(() => setPlanosPorCliente(prev => ({ ...prev, [v.clienteId]: null })));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vinculos]);
+
+  const handleOpenPatient = async (vinculo) => {
+    setSelectedPatient(vinculo);
+    setObservacoes([]);
+    setNovaObservacao("");
+    if (vinculo?.clienteId) {
       try {
-        const res = await apiFetch(`/prontuario/${usuarioLogado.id}/${encodeURIComponent(patient.name)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setClinicalNotes(data.observations || "");
-          setClinicalNotesId(data.id > 0 ? data.id : null);
-        }
+        const res = await apiFetch(`/prontuario/${vinculo.clienteId}`);
+        if (res.ok) setObservacoes(await res.json());
       } catch {}
     }
   };
 
   const handleSaveClinicalNotes = async () => {
-    if (!usuarioLogado?.id || !selectedPatient?.name) return;
+    if (!selectedPatient?.clienteId || !novaObservacao.trim()) return;
     setSavingNotes(true);
     try {
       const res = await apiFetch("/prontuario", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          consultaId: clinicalNotesId,
-          observations: clinicalNotes,
-          pacienteNome: selectedPatient.name,
-          nutricionistaId: usuarioLogado.id,
-        }),
+        body: JSON.stringify({ clienteId: selectedPatient.clienteId, texto: novaObservacao.trim() }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setClinicalNotesId(data.id);
-        toast.success("Notas clínicas salvas!");
+        const salva = await res.json();
+        setObservacoes(prev => [salva, ...prev]);
+        setNovaObservacao("");
+        toast.success("Observação salva com sucesso.");
       } else {
-        toast.error("Erro ao salvar notas.");
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.message || "Não foi possível salvar a observação.");
       }
     } catch { toast.error("Erro ao conectar com o servidor."); }
     setSavingNotes(false);
   };
 
-  const handleOpenEvolution = async (patient) => {
-    setEvolutionPatient(patient);
-    setProgressNote("");
-    if (usuarioLogado?.id && patient?.name) {
+  const handleOpenEvolution = async (vinculo) => {
+    setEvolutionPatient(vinculo);
+    setEvolutionData(null);
+    if (vinculo?.clienteId) {
       try {
-        const res = await apiFetch(`/prontuario/${usuarioLogado.id}/${encodeURIComponent(patient.name)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setProgressNote(data.observations || "");
-        }
+        const res = await apiFetch(`/clientes/${vinculo.clienteId}/progresso`);
+        if (res.ok) setEvolutionData(await res.json());
       } catch {}
     }
     setIsEvolutionDialogOpen(true);
   };
 
-  const handleSaveProgressNote = async () => {
-    if (!usuarioLogado?.id || !evolutionPatient?.name) return;
-    setSavingProgress(true);
-    try {
-      const res = await apiFetch("/prontuario", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          observations: progressNote,
-          pacienteNome: evolutionPatient.name,
-          nutricionistaId: usuarioLogado.id,
-        }),
-      });
-      if (res.ok) {
-        toast.success("Nota de progresso salva!");
-      } else {
-        toast.error("Erro ao salvar nota.");
-      }
-    } catch { toast.error("Erro ao conectar com o servidor."); }
-    setSavingProgress(false);
+  const handleGerarConvite = async () => {
+    const codigo = await gerarConvite();
+    if (codigo) setConvite(codigo);
   };
 
-  const handleSaveNewPatient = () => {
-    if (!newPatientForm.name || !newPatientForm.age || !newPatientForm.weight) {
-      toast.error("Preencha os campos obrigatórios (Nome, Idade, Peso)");
-      return;
+  const copiarConvite = () => {
+    navigator.clipboard?.writeText(convite).then(() => {
+      setConviteCopiado(true);
+      setTimeout(() => setConviteCopiado(false), 2000);
+    });
+  };
+
+  const handleSalvarExterno = async () => {
+    if (!externoForm.nome) { toast.error("Informe o nome do paciente."); return; }
+    const { ok } = await cadastrarPacienteExterno(externoForm);
+    if (ok) {
+      toast.success(`Paciente ${externoForm.nome} cadastrado.`);
+      setExternoForm(FORM_EXTERNO_VAZIO);
+      setIsNewPatientDialogOpen(false);
     }
-    adicionarPaciente(newPatientForm);
-    toast.success(`Paciente ${newPatientForm.name} adicionado!`);
-    setIsNewPatientDialogOpen(false);
-    setNewPatientForm(FORM_VAZIO);
   };
 
-  const filteredPatients = pacientes.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPatients = pacientesAtivos.filter(v =>
+    (v.clienteNome || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -139,8 +134,8 @@ export default function Nutricionista() {
             <Button variant="outline" className="border-green-200 text-green-700 bg-green-50" onClick={() => navigate("/agenda-nutricionista")}>
               <Calendar className="w-4 h-4 mr-2" /> Agenda de Hoje
             </Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={() => setIsNewPatientDialogOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" /> Novo Paciente
+            <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setConvite(null); setIsNewPatientDialogOpen(true); }}>
+              <Plus className="w-4 h-4 mr-2" /> Adicionar Paciente
             </Button>
           </div>
         </div>
@@ -148,8 +143,8 @@ export default function Nutricionista() {
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <Card className="border-none shadow-sm bg-green-600 text-white">
             <CardContent className="p-6">
-              <p className="text-sm font-bold opacity-80 uppercase mb-1">Total de Pacientes</p>
-              <h3 className="text-3xl font-bold">{pacientes.length}</h3>
+              <p className="text-sm font-bold opacity-80 uppercase mb-1">Pacientes Vinculados</p>
+              <h3 className="text-3xl font-bold">{pacientesAtivos.length}</h3>
             </CardContent>
           </Card>
           <Card className="border-none shadow-sm">
@@ -166,6 +161,38 @@ export default function Nutricionista() {
           </Card>
         </div>
 
+        {solicitacoesPendentes.length > 0 && (
+          <Card className="mb-8 border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base">Solicitações de acompanhamento</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {solicitacoesPendentes.map(v => (
+                <div key={v.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-xl">
+                  <span className="font-medium text-gray-800">{v.clienteNome}</span>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => recusarVinculo(v.id)}>Recusar</Button>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => aceitarVinculo(v.id)}>Aceitar</Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {convitesAbertos.length > 0 && (
+          <Card className="mb-8 border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base">Convites aguardando uso</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {convitesAbertos.map(v => (
+                <Badge key={v.id} variant="outline" className="text-sm py-1 px-3">{v.codigoConvite}</Badge>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="mb-8 border-none shadow-sm overflow-hidden">
           <CardHeader className="bg-gray-50 border-b">
             <div className="relative">
@@ -176,99 +203,122 @@ export default function Nutricionista() {
           <CardContent className="p-0">
             {filteredPatients.length === 0 ? (
               <div className="p-12 text-center text-gray-400">
-                {pacientes.length === 0
-                  ? "Nenhum paciente cadastrado ainda. Clique em \"Novo Paciente\" para adicionar."
+                {pacientesAtivos.length === 0
+                  ? "Nenhum paciente vinculado, melhore seu perfil e espere seus clientes"
                   : "Nenhum paciente encontrado com esse nome."}
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-px bg-gray-100">
-                {filteredPatients.map(patient => (
-                  <div key={patient.id} className="bg-white p-6 hover:bg-green-50/30 transition-colors">
-                    <div className="flex items-center gap-4 mb-4">
-                      <Avatar className="w-16 h-16 border-2 border-green-50">
-                        <AvatarFallback className="bg-green-100 text-green-700 font-bold text-xl">
-                          {patient.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-xl font-bold text-gray-900 truncate">{patient.name}</h3>
-                          <Badge className={patient.status === "Em dia" ? "bg-green-100 text-green-700 border-none" : "bg-amber-100 text-amber-700 border-none"}>
-                            {patient.status}
-                          </Badge>
+                {filteredPatients.map(v => {
+                  const plano = planosPorCliente[v.clienteId];
+                  const temPlano = !!plano;
+                  return (
+                    <div key={v.id} className="bg-white p-6 hover:bg-green-50/30 transition-colors">
+                      <div className="flex items-center gap-4 mb-4">
+                        <Avatar className="w-16 h-16 border-2 border-green-50">
+                          <AvatarFallback className="bg-green-100 text-green-700 font-bold text-xl">
+                            {(v.clienteNome || "?").charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-xl font-bold text-gray-900 truncate">{v.clienteNome}</h3>
+                          <p className="text-sm text-gray-500 truncate">{v.clienteEmail}</p>
                         </div>
-                        <p className="text-sm text-gray-500">{patient.age} anos • {patient.goal || "Sem objetivo definido"}</p>
                       </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="p-3 bg-gray-50 rounded-xl">
-                        <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Peso Atual</p>
-                        <p className="text-lg font-bold text-gray-900">{patient.weight} kg</p>
+                      <div className="mb-4 p-3 bg-gray-50 rounded-xl text-sm">
+                        {temPlano ? (
+                          <>
+                            <p className="font-medium text-green-700">✓ Plano criado</p>
+                            {plano.dataInicio && (
+                              <p className="text-gray-400">Última atualização: {new Date(plano.dataInicio).toLocaleDateString("pt-BR")}</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="font-medium text-gray-400">○ Nenhum plano criado</p>
+                        )}
                       </div>
-                      <div className="p-3 bg-gray-50 rounded-xl">
-                        <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Altura</p>
-                        <p className="text-lg font-bold text-gray-900">{patient.height ? `${patient.height} cm` : "—"}</p>
-                      </div>
-                    </div>
 
-                    <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={() => handleOpenPatient(patient)}>
-                        <ClipboardList className="w-4 h-4 mr-2" /> Detalhes
-                      </Button>
-                      <Button className="bg-green-600 hover:bg-green-700 flex-1 h-11 rounded-xl" onClick={() => handleOpenEvolution(patient)}>
-                        <TrendingUp className="w-4 h-4 mr-2" /> Evolução
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={() => handleOpenPatient(v)}>
+                          <ClipboardList className="w-4 h-4 mr-2" /> Prontuário
+                        </Button>
+                        <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={() => handleOpenEvolution(v)}>
+                          <TrendingUp className="w-4 h-4 mr-2" /> Evolução
+                        </Button>
+                        <Button className="bg-green-600 hover:bg-green-700 w-full h-11 rounded-xl" onClick={() => navigate(`/plano-personalizado/${v.clienteId}`)}>
+                          {temPlano ? "Criar Novo Plano Personalizado" : "Criar Plano Personalizado"}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Dialog Detalhes */}
+        {pacientesExternos.length > 0 && (
+          <Card className="mb-8 border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base">Pacientes sem conta</CardTitle>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-2 gap-3">
+              {pacientesExternos.map(p => (
+                <div key={p.id} className="p-4 bg-gray-50 rounded-xl">
+                  <p className="font-bold text-gray-900">{p.nome}</p>
+                  <p className="text-sm text-gray-500">{p.objetivo || "Sem objetivo definido"}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Dialog Prontuário */}
         <Dialog open={!!selectedPatient} onOpenChange={open => !open && setSelectedPatient(null)}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             {selectedPatient && (
               <>
                 <DialogHeader className="mb-4">
                   <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                    <Users className="w-6 h-6 text-green-600" /> Prontuário: {selectedPatient.name}
+                    <Users className="w-6 h-6 text-green-600" /> Prontuário: {selectedPatient.clienteNome}
                   </DialogTitle>
-                  <DialogDescription>Detalhes completos do paciente.</DialogDescription>
+                  <DialogDescription>Observações clínicas do paciente.</DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { label: "Objetivo", value: selectedPatient.goal },
-                    { label: "Restrições", value: selectedPatient.restrictions },
-                    { label: "Atividade Física", value: selectedPatient.activity },
-                    { label: "Problemas de Saúde", value: selectedPatient.healthIssues },
-                    { label: "Horas de Sono", value: selectedPatient.sleep },
-                    { label: "Sexo", value: selectedPatient.sex },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="p-4 bg-gray-50 rounded-xl">
-                      <Label className="text-[10px] uppercase font-bold text-gray-400">{label}</Label>
-                      <p className="text-gray-900 font-bold text-base mt-1">{value || "—"}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 p-4 border-2 border-dashed rounded-xl">
-                  <Label className="text-sm font-bold text-gray-600 mb-2 block">Observações Clínicas</Label>
+                <div className="p-4 border-2 border-dashed rounded-xl">
+                  <Label className="text-sm font-bold text-gray-600 mb-2 block">Nova observação</Label>
                   <Textarea
                     className="w-full text-sm text-gray-700 resize-none"
-                    placeholder="Adicione notas clínicas aqui..."
+                    placeholder="Adicione uma observação clínica..."
                     rows={4}
-                    value={clinicalNotes}
-                    onChange={e => setClinicalNotes(e.target.value)}
+                    value={novaObservacao}
+                    onChange={e => setNovaObservacao(e.target.value)}
                   />
                   <Button
                     className="mt-3 bg-green-600 hover:bg-green-700"
                     onClick={handleSaveClinicalNotes}
-                    disabled={savingNotes}
+                    disabled={savingNotes || !novaObservacao.trim()}
                   >
-                    {savingNotes ? "Salvando..." : "Salvar Notas"}
+                    {savingNotes ? "Salvando..." : "Salvar observação"}
                   </Button>
+                </div>
+
+                <div className="mt-4">
+                  <Label className="text-sm font-bold text-gray-600 mb-2 block">Histórico de observações</Label>
+                  {observacoes.length === 0 ? (
+                    <p className="text-sm text-gray-400 py-4">Nenhuma observação registrada ainda.</p>
+                  ) : (
+                    <div className="space-y-3 max-h-80 overflow-y-auto">
+                      {observacoes.map(o => (
+                        <div key={o.id} className="p-3 bg-gray-50 rounded-xl">
+                          <p className="text-xs text-gray-400 font-medium mb-1">
+                            {new Date(o.dataHora).toLocaleDateString("pt-BR")} — Nutricionista
+                          </p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{o.texto}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -282,141 +332,95 @@ export default function Nutricionista() {
               <div className="py-2">
                 <DialogHeader className="mb-4">
                   <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                    <TrendingUp className="w-6 h-6 text-green-600" /> Evolução: {evolutionPatient.name}
+                    <TrendingUp className="w-6 h-6 text-green-600" /> Evolução: {evolutionPatient.clienteNome}
                   </DialogTitle>
                   <DialogDescription>Histórico de peso do paciente.</DialogDescription>
                 </DialogHeader>
-                {evolutionPatient.evolution && evolutionPatient.evolution.length > 0 ? (
+                {evolutionData?.historico?.length > 0 ? (
                   <>
                     <div className="h-[250px] w-full mb-4">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={evolutionPatient.evolution}>
+                        <LineChart data={evolutionData.historico}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                          <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                          <XAxis dataKey="data" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                           <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} domain={["dataMin - 2", "dataMax + 2"]} />
                           <Tooltip contentStyle={{ border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
-                          <Line type="monotone" dataKey="weight" stroke="#16a34a" strokeWidth={3} dot={{ fill: "#16a34a", r: 5 }} activeDot={{ r: 8 }} />
+                          <Line type="monotone" dataKey="peso" stroke="#16a34a" strokeWidth={3} dot={{ fill: "#16a34a", r: 5 }} activeDot={{ r: 8 }} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="p-3 bg-green-50 rounded-xl text-center">
                         <p className="text-[10px] text-green-600 font-bold uppercase">Peso Inicial</p>
-                        <p className="text-lg font-bold text-gray-900">{evolutionPatient.evolution[0].weight}kg</p>
+                        <p className="text-lg font-bold text-gray-900">{evolutionData.pesoInicial ?? "—"}kg</p>
                       </div>
                       <div className="p-3 bg-blue-50 rounded-xl text-center">
-                        <p className="text-[10px] text-blue-600 font-bold uppercase">Peso Atual</p>
-                        <p className="text-lg font-bold text-gray-900">{evolutionPatient.weight}kg</p>
+                        <p className="text-[10px] text-blue-600 font-bold uppercase">Peso Ideal</p>
+                        <p className="text-lg font-bold text-gray-900">{evolutionData.pesoIdeal ?? "—"}kg</p>
                       </div>
                       <div className="p-3 bg-purple-50 rounded-xl text-center">
-                        <p className="text-[10px] text-purple-600 font-bold uppercase">Redução</p>
-                        <p className="text-lg font-bold text-gray-900">-{(evolutionPatient.evolution[0].weight - evolutionPatient.weight).toFixed(1)}kg</p>
+                        <p className="text-[10px] text-purple-600 font-bold uppercase">IMC</p>
+                        <p className="text-lg font-bold text-gray-900">{evolutionData.imc ?? "—"}</p>
                       </div>
                     </div>
                   </>
                 ) : (
                   <p className="text-center text-gray-400 py-8">Nenhum histórico de peso registrado para este paciente.</p>
                 )}
-                <div className="mt-4 pt-4 border-t">
-                  <Label className="text-sm font-bold text-gray-600 mb-2 block">Nota de Progresso</Label>
-                  <Textarea
-                    placeholder="Registre evolução, observações de progresso..."
-                    rows={3}
-                    value={progressNote}
-                    onChange={e => setProgressNote(e.target.value)}
-                  />
-                  <Button
-                    className="mt-3 bg-green-600 hover:bg-green-700"
-                    onClick={handleSaveProgressNote}
-                    disabled={savingProgress}
-                  >
-                    {savingProgress ? "Salvando..." : "Salvar Nota"}
-                  </Button>
-                </div>
               </div>
             )}
           </DialogContent>
         </Dialog>
 
-        {/* Dialog Novo Paciente */}
+        {/* Dialog Adicionar Paciente */}
         <Dialog open={isNewPatientDialogOpen} onOpenChange={setIsNewPatientDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[550px]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Plus className="w-5 h-5 text-green-600" /> Adicionar Novo Paciente
+                <UserPlus className="w-5 h-5 text-green-600" /> Adicionar Paciente
               </DialogTitle>
-              <DialogDescription>Preencha os dados do novo paciente.</DialogDescription>
+              <DialogDescription>Vincule um paciente que já tem conta ou cadastre um sem conta.</DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+            <Tabs defaultValue="convite">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="convite">Paciente já possui conta</TabsTrigger>
+                <TabsTrigger value="externo">Cadastrar sem conta</TabsTrigger>
+              </TabsList>
+              <TabsContent value="convite" className="space-y-4 pt-4">
+                <p className="text-sm text-gray-500">
+                  Gere um código e envie para o paciente (WhatsApp, Instagram, etc). Ele informa o código no NutriLife para se vincular a você.
+                </p>
+                {convite ? (
+                  <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl">
+                    <span className="text-lg font-bold text-green-700">{convite}</span>
+                    <Button size="sm" variant="outline" onClick={copiarConvite}>
+                      {conviteCopiado ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button className="bg-green-600 hover:bg-green-700 w-full" onClick={handleGerarConvite}>
+                    Gerar código de convite
+                  </Button>
+                )}
+              </TabsContent>
+              <TabsContent value="externo" className="space-y-4 pt-4">
                 <div className="space-y-2">
                   <Label>Nome Completo *</Label>
-                  <Input placeholder="João da Silva" value={newPatientForm.name} onChange={e => setField("name", e.target.value)} />
+                  <Input placeholder="João da Silva" value={externoForm.nome} onChange={e => setExternoForm(p => ({ ...p, nome: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Idade *</Label>
-                  <Input type="number" placeholder="30" value={newPatientForm.age} onChange={e => setField("age", e.target.value)} />
+                  <Label>Objetivo</Label>
+                  <Input placeholder="Emagrecimento" value={externoForm.objetivo} onChange={e => setExternoForm(p => ({ ...p, objetivo: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Peso (kg) *</Label>
-                  <Input type="number" step="0.1" placeholder="75.5" value={newPatientForm.weight} onChange={e => setField("weight", e.target.value)} />
+                  <Label>Observações</Label>
+                  <Textarea rows={3} value={externoForm.observacoes} onChange={e => setExternoForm(p => ({ ...p, observacoes: e.target.value }))} />
                 </div>
-                <div className="space-y-2">
-                  <Label>Altura (cm)</Label>
-                  <Input placeholder="175" value={newPatientForm.height} onChange={e => setField("height", e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Sexo Biológico</Label>
-                <Select value={newPatientForm.sex} onValueChange={v => setField("sex", v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Masculino">Masculino</SelectItem>
-                    <SelectItem value="Feminino">Feminino</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Objetivo Principal</Label>
-                <Select value={newPatientForm.goal} onValueChange={v => setField("goal", v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Emagrecimento">Emagrecimento</SelectItem>
-                    <SelectItem value="Ganho de Massa">Ganho de Massa</SelectItem>
-                    <SelectItem value="Definição">Definição</SelectItem>
-                    <SelectItem value="Saúde Geral">Saúde Geral</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Nível de Atividade Física</Label>
-                <Select value={newPatientForm.activity} onValueChange={v => setField("activity", v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sedentário">Sedentário</SelectItem>
-                    <SelectItem value="Leve">Leve (1-3x/semana)</SelectItem>
-                    <SelectItem value="Moderado">Moderado (3-5x/semana)</SelectItem>
-                    <SelectItem value="Intenso">Intenso (6-7x/semana)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Horas de Sono (média)</Label>
-                <Input type="number" placeholder="7" value={newPatientForm.sleep} onChange={e => setField("sleep", e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Restrições Alimentares</Label>
-                <Textarea placeholder="Lactose, glúten..." value={newPatientForm.restrictions} onChange={e => setField("restrictions", e.target.value)} rows={2} />
-              </div>
-              <div className="space-y-2">
-                <Label>Problemas de Saúde</Label>
-                <Textarea placeholder="Diabetes, hipertensão..." value={newPatientForm.healthIssues} onChange={e => setField("healthIssues", e.target.value)} rows={2} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsNewPatientDialogOpen(false)}>Cancelar</Button>
-              <Button className="bg-green-600 hover:bg-green-700" onClick={handleSaveNewPatient}>Salvar Paciente</Button>
-            </DialogFooter>
+                <DialogFooter>
+                  <Button className="bg-green-600 hover:bg-green-700" onClick={handleSalvarExterno}>Salvar Paciente</Button>
+                </DialogFooter>
+              </TabsContent>
+            </Tabs>
           </DialogContent>
         </Dialog>
       </div>

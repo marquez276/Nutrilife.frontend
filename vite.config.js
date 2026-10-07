@@ -24,7 +24,7 @@ export default defineConfig({
   server: {
     proxy: Object.fromEntries(
       ['/auth', '/usuarios', '/anamnese', '/registros', '/clientes', '/consultas', '/plano', '/alimentos',
-       '/nutricionistas', '/avaliacoes', '/admin', '/prontuario'].map((p) => [p, backend])
+       '/nutricionistas', '/avaliacoes', '/admin', '/prontuario', '/vinculos', '/pacientes-externos'].map((p) => [p, backend])
     ),
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],

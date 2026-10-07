@@ -2,7 +2,7 @@ import { Layout } from "../components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Star, Search, MessageCircle, Instagram, Globe, Linkedin, Video, Award, TrendingUp, DollarSign, Send } from "lucide-react";
+import { Star, Search, MessageCircle, Instagram, Globe, Linkedin, Video, Award, TrendingUp, DollarSign, Send, UserPlus, Check, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog";
@@ -12,11 +12,15 @@ import { toast } from "sonner";
 import { useApp } from "../context/AppContext";
 
 export default function NutricionistasLista() {
-  const { nutricionistas, adicionarAvaliacao, usuarioLogado, recarregarNutricionistas } = useApp();
+  const { nutricionistas, adicionarAvaliacao, usuarioLogado, recarregarNutricionistas, vinculos, solicitarVinculo, resgatarConvite } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedNutri, setSelectedNutri] = useState(null);
   const [newReview, setNewReview] = useState({ rating: 5, comment: "" });
   const [enviando, setEnviando] = useState(false);
+  const [solicitando, setSolicitando] = useState(false);
+  const [convitePaciente, setConvitePaciente] = useState("");
+  const [resgatando, setResgatando] = useState(false);
+  const [dialogConviteAberto, setDialogConviteAberto] = useState(false);
 
   useEffect(() => { recarregarNutricionistas(); }, []);
 
@@ -39,6 +43,22 @@ export default function NutricionistasLista() {
     setEnviando(false);
   };
 
+  const vinculoCom = (nutricionistaId) => vinculos.find(v => v.nutricionistaId === nutricionistaId);
+
+  const handleSolicitar = async (nutricionistaId) => {
+    setSolicitando(true);
+    await solicitarVinculo(nutricionistaId);
+    setSolicitando(false);
+  };
+
+  const handleResgatarConvite = async () => {
+    if (!convitePaciente.trim()) { toast.error("Informe o código de convite."); return; }
+    setResgatando(true);
+    const { ok } = await resgatarConvite(convitePaciente.trim().toUpperCase());
+    setResgatando(false);
+    if (ok) { setConvitePaciente(""); setDialogConviteAberto(false); }
+  };
+
   const mediaRating = (reviews) => {
     if (!reviews?.length) return null;
     return (reviews.reduce((s, r) => s + (r.rating ?? r.nota ?? 0), 0) / reviews.length).toFixed(1);
@@ -52,9 +72,24 @@ export default function NutricionistasLista() {
           <p className="text-gray-500">Especialistas prontos para te ajudar em sua jornada de saúde</p>
         </div>
 
-        <div className="mb-8 relative max-w-2xl">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <Input placeholder="Buscar por nome ou especialidade..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-12 h-12 text-lg shadow-sm border-gray-200" />
+        <div className="mb-8 flex flex-wrap items-center gap-4">
+          <div className="relative max-w-2xl flex-1 min-w-[260px]">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Input placeholder="Buscar por nome ou especialidade..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-12 h-12 text-lg shadow-sm border-gray-200" />
+          </div>
+          <Dialog open={dialogConviteAberto} onOpenChange={setDialogConviteAberto}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Já tenho um código de convite</DialogTitle>
+                <DialogDescription>Informe o código que seu nutricionista compartilhou com você.</DialogDescription>
+              </DialogHeader>
+              <Input placeholder="NUTRI-XXXXXX" value={convitePaciente} onChange={e => setConvitePaciente(e.target.value)} />
+              <Button className="bg-green-600 hover:bg-green-700 w-full" onClick={handleResgatarConvite} disabled={resgatando}>
+                {resgatando ? "Validando..." : "Vincular"}
+              </Button>
+            </DialogContent>
+          </Dialog>
+          <Button variant="outline" className="h-12" onClick={() => setDialogConviteAberto(true)}>Tenho um código de convite</Button>
         </div>
 
         {filteredNutris.length === 0 ? (
@@ -137,6 +172,29 @@ export default function NutricionistasLista() {
                     <div className="w-full md:w-1/3 space-y-6">
                       <Card className="border-none shadow-sm bg-gray-50">
                         <CardContent className="p-4 space-y-3">
+                          {(() => {
+                            const v = vinculoCom(selectedNutri.id);
+                            if (v?.status === "ATIVO") {
+                              return (
+                                <Button disabled className="w-full h-12 bg-green-100 text-green-700 border-none">
+                                  <Check className="w-5 h-5 mr-2" /> Vinculado
+                                </Button>
+                              );
+                            }
+                            if (v?.status === "PENDENTE") {
+                              return (
+                                <Button disabled className="w-full h-12 bg-amber-100 text-amber-700 border-none">
+                                  <Clock className="w-5 h-5 mr-2" /> Solicitação enviada
+                                </Button>
+                              );
+                            }
+                            return (
+                              <Button className="w-full bg-green-600 hover:bg-green-700 text-white h-12"
+                                onClick={() => handleSolicitar(selectedNutri.id)} disabled={solicitando}>
+                                <UserPlus className="w-5 h-5 mr-2" /> {solicitando ? "Enviando..." : "Solicitar acompanhamento"}
+                              </Button>
+                            );
+                          })()}
                           {selectedNutri.whatsapp && (
                             <Button className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white h-12"
                               onClick={() => window.open(`https://wa.me/${selectedNutri.whatsapp.replace(/\D/g, "")}`)}>
